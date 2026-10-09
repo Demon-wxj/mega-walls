@@ -1,0 +1,35 @@
+{
+  "schemaVersion": 1,
+  "id": "megawalls",
+  "version": "${version}",
+  "name": "超级战墙 Mod",
+  "description": "超级战墙、对战与小游戏。",
+  "authors": [
+    "MW Team"
+  ],
+  "contact": {},
+  "license": "GPL-3.0-only",
+  "environment": "*",
+  "entrypoints": {
+    "main": [
+      "com.megawalls.MWMod"
+    ],
+    "client": [
+      "com.megawalls.client.MWClient"
+    ]
+  },
+  "mixins": [
+    "megawalls.mixins.json",
+    "interaction-compat.mixins.json"
+  ],
+  "breaks": {
+    "tabletop": "<0.4.1"
+  },
+  "depends": {
+    "fabricloader": ">=0.16.0",
+    "minecraft": "=1.21.1",
+    "java": ">=21",
+    "fabric-api": "*",
+    "aaa_particles": "=2.3.0"
+  }
+}

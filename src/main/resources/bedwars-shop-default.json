@@ -1,0 +1,737 @@
+{
+  "schema": 1,
+  "basis": "BedwarsRel v1.1.15 2015-06-09; arrow price provisionally 1 gold",
+  "offers": [
+    {
+      "id": "armor_1",
+      "category": "armor",
+      "name": "皮革帽",
+      "item": "minecraft:leather_helmet",
+      "count": 1,
+      "price": {
+        "bronze": 1,
+        "iron": 0,
+        "gold": 0
+      },
+      "enchants": {
+        "protection": 1
+      },
+      "special": "",
+      "potion": ""
+    },
+    {
+      "id": "armor_2",
+      "category": "armor",
+      "name": "皮革裤",
+      "item": "minecraft:leather_leggings",
+      "count": 1,
+      "price": {
+        "bronze": 1,
+        "iron": 0,
+        "gold": 0
+      },
+      "enchants": {
+        "protection": 1
+      },
+      "special": "",
+      "potion": ""
+    },
+    {
+      "id": "armor_3",
+      "category": "armor",
+      "name": "皮革靴",
+      "item": "minecraft:leather_boots",
+      "count": 1,
+      "price": {
+        "bronze": 1,
+        "iron": 0,
+        "gold": 0
+      },
+      "enchants": {
+        "protection": 1
+      },
+      "special": "",
+      "potion": ""
+    },
+    {
+      "id": "armor_4",
+      "category": "armor",
+      "name": "磁力鞋",
+      "item": "minecraft:iron_boots",
+      "count": 1,
+      "price": {
+        "bronze": 0,
+        "iron": 6,
+        "gold": 1
+      },
+      "enchants": {},
+      "special": "magnet",
+      "potion": ""
+    },
+    {
+      "id": "armor_5",
+      "category": "armor",
+      "name": "锁链胸甲",
+      "item": "minecraft:chainmail_chestplate",
+      "count": 1,
+      "price": {
+        "bronze": 0,
+        "iron": 1,
+        "gold": 0
+      },
+      "enchants": {
+        "protection": 1
+      },
+      "special": "",
+      "potion": ""
+    },
+    {
+      "id": "armor_6",
+      "category": "armor",
+      "name": "锁链胸甲",
+      "item": "minecraft:chainmail_chestplate",
+      "count": 1,
+      "price": {
+        "bronze": 0,
+        "iron": 3,
+        "gold": 0
+      },
+      "enchants": {
+        "protection": 2
+      },
+      "special": "",
+      "potion": ""
+    },
+    {
+      "id": "armor_7",
+      "category": "armor",
+      "name": "锁链胸甲",
+      "item": "minecraft:chainmail_chestplate",
+      "count": 1,
+      "price": {
+        "bronze": 0,
+        "iron": 7,
+        "gold": 0
+      },
+      "enchants": {
+        "protection": 3
+      },
+      "special": "",
+      "potion": ""
+    },
+    {
+      "id": "armor_8",
+      "category": "armor",
+      "name": "铁头盔",
+      "item": "minecraft:iron_helmet",
+      "count": 1,
+      "price": {
+        "bronze": 0,
+        "iron": 0,
+        "gold": 10
+      },
+      "enchants": {
+        "protection": 2
+      },
+      "special": "",
+      "potion": ""
+    },
+    {
+      "id": "swords_1",
+      "category": "swords",
+      "name": "击退棒",
+      "item": "minecraft:stick",
+      "count": 1,
+      "price": {
+        "bronze": 8,
+        "iron": 0,
+        "gold": 0
+      },
+      "enchants": {
+        "knockback": 1
+      },
+      "special": "",
+      "potion": ""
+    },
+    {
+      "id": "swords_2",
+      "category": "swords",
+      "name": "金剑",
+      "item": "minecraft:golden_sword",
+      "count": 1,
+      "price": {
+        "bronze": 0,
+        "iron": 1,
+        "gold": 0
+      },
+      "enchants": {
+        "sharpness": 1
+      },
+      "special": "",
+      "potion": ""
+    },
+    {
+      "id": "swords_3",
+      "category": "swords",
+      "name": "金剑",
+      "item": "minecraft:golden_sword",
+      "count": 1,
+      "price": {
+        "bronze": 0,
+        "iron": 3,
+        "gold": 0
+      },
+      "enchants": {
+        "sharpness": 2
+      },
+      "special": "",
+      "potion": ""
+    },
+    {
+      "id": "swords_4",
+      "category": "swords",
+      "name": "金剑",
+      "item": "minecraft:golden_sword",
+      "count": 1,
+      "price": {
+        "bronze": 0,
+        "iron": 7,
+        "gold": 0
+      },
+      "enchants": {
+        "sharpness": 3
+      },
+      "special": "",
+      "potion": ""
+    },
+    {
+      "id": "swords_5",
+      "category": "swords",
+      "name": "铁剑",
+      "item": "minecraft:iron_sword",
+      "count": 1,
+      "price": {
+        "bronze": 0,
+        "iron": 0,
+        "gold": 3
+      },
+      "enchants": {
+        "sharpness": 2,
+        "knockback": 1
+      },
+      "special": "",
+      "potion": ""
+    },
+    {
+      "id": "swords_6",
+      "category": "swords",
+      "name": "战斧",
+      "item": "minecraft:golden_axe",
+      "count": 1,
+      "price": {
+        "bronze": 0,
+        "iron": 0,
+        "gold": 15
+      },
+      "enchants": {
+        "unbreaking": 1,
+        "sharpness": 1,
+        "knockback": 1
+      },
+      "special": "",
+      "potion": ""
+    },
+    {
+      "id": "bows_1",
+      "category": "bows",
+      "name": "弓",
+      "item": "minecraft:bow",
+      "count": 1,
+      "price": {
+        "bronze": 0,
+        "iron": 0,
+        "gold": 3
+      },
+      "enchants": {
+        "infinity": 1
+      },
+      "special": "",
+      "potion": ""
+    },
+    {
+      "id": "bows_2",
+      "category": "bows",
+      "name": "弓",
+      "item": "minecraft:bow",
+      "count": 1,
+      "price": {
+        "bronze": 0,
+        "iron": 0,
+        "gold": 7
+      },
+      "enchants": {
+        "infinity": 1,
+        "power": 1
+      },
+      "special": "",
+      "potion": ""
+    },
+    {
+      "id": "bows_3",
+      "category": "bows",
+      "name": "弓",
+      "item": "minecraft:bow",
+      "count": 1,
+      "price": {
+        "bronze": 0,
+        "iron": 0,
+        "gold": 13
+      },
+      "enchants": {
+        "infinity": 1,
+        "power": 2
+      },
+      "special": "",
+      "potion": ""
+    },
+    {
+      "id": "bows_4",
+      "category": "bows",
+      "name": "弓",
+      "item": "minecraft:bow",
+      "count": 1,
+      "price": {
+        "bronze": 0,
+        "iron": 0,
+        "gold": 16
+      },
+      "enchants": {
+        "infinity": 1,
+        "flame": 1
+      },
+      "special": "",
+      "potion": ""
+    },
+    {
+      "id": "bows_5",
+      "category": "bows",
+      "name": "弓",
+      "item": "minecraft:bow",
+      "count": 1,
+      "price": {
+        "bronze": 0,
+        "iron": 0,
+        "gold": 15
+      },
+      "enchants": {
+        "infinity": 1,
+        "flame": 1,
+        "punch": 1
+      },
+      "special": "",
+      "potion": ""
+    },
+    {
+      "id": "bows_6",
+      "category": "bows",
+      "name": "箭",
+      "item": "minecraft:arrow",
+      "count": 1,
+      "price": {
+        "bronze": 0,
+        "iron": 0,
+        "gold": 1
+      },
+      "enchants": {},
+      "special": "",
+      "potion": "",
+      "note": "早期配置缺价，项目暂定 1 金"
+    },
+    {
+      "id": "eat_1",
+      "category": "eat",
+      "name": "熟猪排",
+      "item": "minecraft:cooked_porkchop",
+      "count": 2,
+      "price": {
+        "bronze": 4,
+        "iron": 0,
+        "gold": 0
+      },
+      "enchants": {},
+      "special": "",
+      "potion": ""
+    },
+    {
+      "id": "eat_2",
+      "category": "eat",
+      "name": "金苹果",
+      "item": "minecraft:golden_apple",
+      "count": 1,
+      "price": {
+        "bronze": 0,
+        "iron": 2,
+        "gold": 0
+      },
+      "enchants": {},
+      "special": "",
+      "potion": ""
+    },
+    {
+      "id": "eat_3",
+      "category": "eat",
+      "name": "面包",
+      "item": "minecraft:bread",
+      "count": 10,
+      "price": {
+        "bronze": 0,
+        "iron": 0,
+        "gold": 5
+      },
+      "enchants": {},
+      "special": "",
+      "potion": ""
+    },
+    {
+      "id": "pickaxes_1",
+      "category": "pickaxes",
+      "name": "铁镐",
+      "item": "minecraft:iron_pickaxe",
+      "count": 1,
+      "price": {
+        "bronze": 4,
+        "iron": 0,
+        "gold": 0
+      },
+      "enchants": {
+        "fortune": 1,
+        "efficiency": 1
+      },
+      "special": "",
+      "potion": ""
+    },
+    {
+      "id": "pickaxes_2",
+      "category": "pickaxes",
+      "name": "铁镐",
+      "item": "minecraft:iron_pickaxe",
+      "count": 1,
+      "price": {
+        "bronze": 0,
+        "iron": 2,
+        "gold": 0
+      },
+      "enchants": {
+        "fortune": 2,
+        "efficiency": 2
+      },
+      "special": "",
+      "potion": ""
+    },
+    {
+      "id": "pickaxes_3",
+      "category": "pickaxes",
+      "name": "铁镐",
+      "item": "minecraft:iron_pickaxe",
+      "count": 1,
+      "price": {
+        "bronze": 0,
+        "iron": 0,
+        "gold": 1
+      },
+      "enchants": {
+        "fortune": 3,
+        "efficiency": 3
+      },
+      "special": "",
+      "potion": ""
+    },
+    {
+      "id": "pickaxes_diamond_efficiency_1",
+      "category": "pickaxes",
+      "name": "钻石镐",
+      "item": "minecraft:diamond_pickaxe",
+      "count": 1,
+      "price": {
+        "bronze": 0,
+        "iron": 0,
+        "gold": 3
+      },
+      "enchants": {
+        "efficiency": 1
+      },
+      "special": "",
+      "potion": ""
+    },
+    {
+      "id": "blocks_1",
+      "category": "blocks",
+      "name": "砂岩",
+      "item": "minecraft:cut_sandstone",
+      "count": 2,
+      "price": {
+        "bronze": 1,
+        "iron": 0,
+        "gold": 0
+      },
+      "enchants": {},
+      "special": "",
+      "potion": ""
+    },
+    {
+      "id": "blocks_2",
+      "category": "blocks",
+      "name": "末地石",
+      "item": "minecraft:end_stone",
+      "count": 1,
+      "price": {
+        "bronze": 7,
+        "iron": 0,
+        "gold": 0
+      },
+      "enchants": {},
+      "special": "",
+      "potion": ""
+    },
+    {
+      "id": "blocks_3",
+      "category": "blocks",
+      "name": "铁块",
+      "item": "minecraft:iron_block",
+      "count": 1,
+      "price": {
+        "bronze": 0,
+        "iron": 3,
+        "gold": 0
+      },
+      "enchants": {},
+      "special": "",
+      "potion": ""
+    },
+    {
+      "id": "blocks_4",
+      "category": "blocks",
+      "name": "荧石",
+      "item": "minecraft:glowstone",
+      "count": 4,
+      "price": {
+        "bronze": 15,
+        "iron": 0,
+        "gold": 0
+      },
+      "enchants": {},
+      "special": "",
+      "potion": ""
+    },
+    {
+      "id": "blocks_5",
+      "category": "blocks",
+      "name": "玻璃",
+      "item": "minecraft:glass",
+      "count": 1,
+      "price": {
+        "bronze": 4,
+        "iron": 0,
+        "gold": 0
+      },
+      "enchants": {},
+      "special": "",
+      "potion": ""
+    },
+    {
+      "id": "usefulstuff_1",
+      "category": "usefulstuff",
+      "name": "TNT",
+      "item": "minecraft:tnt",
+      "count": 1,
+      "price": {
+        "bronze": 0,
+        "iron": 3,
+        "gold": 0
+      },
+      "enchants": {},
+      "special": "tnt",
+      "potion": ""
+    },
+    {
+      "id": "usefulstuff_2",
+      "category": "usefulstuff",
+      "name": "打火石",
+      "item": "minecraft:flint_and_steel",
+      "count": 1,
+      "price": {
+        "bronze": 0,
+        "iron": 0,
+        "gold": 1
+      },
+      "enchants": {},
+      "special": "",
+      "potion": ""
+    },
+    {
+      "id": "usefulstuff_3",
+      "category": "usefulstuff",
+      "name": "箱子",
+      "item": "minecraft:chest",
+      "count": 1,
+      "price": {
+        "bronze": 0,
+        "iron": 1,
+        "gold": 0
+      },
+      "enchants": {},
+      "special": "",
+      "potion": ""
+    },
+    {
+      "id": "usefulstuff_4",
+      "category": "usefulstuff",
+      "name": "末影箱",
+      "item": "minecraft:ender_chest",
+      "count": 1,
+      "price": {
+        "bronze": 0,
+        "iron": 0,
+        "gold": 1
+      },
+      "enchants": {},
+      "special": "",
+      "potion": ""
+    },
+    {
+      "id": "usefulstuff_5",
+      "category": "usefulstuff",
+      "name": "自救平台",
+      "item": "minecraft:blaze_rod",
+      "count": 1,
+      "price": {
+        "bronze": 0,
+        "iron": 15,
+        "gold": 0
+      },
+      "enchants": {},
+      "special": "rescue",
+      "potion": ""
+    },
+    {
+      "id": "usefulstuff_6",
+      "category": "usefulstuff",
+      "name": "陷阱",
+      "item": "minecraft:string",
+      "count": 1,
+      "price": {
+        "bronze": 0,
+        "iron": 3,
+        "gold": 0
+      },
+      "enchants": {},
+      "special": "trap",
+      "potion": ""
+    },
+    {
+      "id": "usefulstuff_7",
+      "category": "usefulstuff",
+      "name": "防护墙",
+      "item": "minecraft:bricks",
+      "count": 1,
+      "price": {
+        "bronze": 64,
+        "iron": 0,
+        "gold": 0
+      },
+      "enchants": {},
+      "special": "wall",
+      "potion": ""
+    },
+    {
+      "id": "usefulstuff_8",
+      "category": "usefulstuff",
+      "name": "回城粉",
+      "item": "minecraft:gunpowder",
+      "count": 1,
+      "price": {
+        "bronze": 0,
+        "iron": 7,
+        "gold": 0
+      },
+      "enchants": {},
+      "special": "warp",
+      "potion": ""
+    },
+    {
+      "id": "drinks_1",
+      "category": "drinks",
+      "name": "治疗 I",
+      "item": "minecraft:potion",
+      "count": 1,
+      "price": {
+        "bronze": 0,
+        "iron": 3,
+        "gold": 0
+      },
+      "enchants": {},
+      "special": "",
+      "potion": "healing"
+    },
+    {
+      "id": "drinks_2",
+      "category": "drinks",
+      "name": "治疗 II",
+      "item": "minecraft:potion",
+      "count": 1,
+      "price": {
+        "bronze": 0,
+        "iron": 5,
+        "gold": 0
+      },
+      "enchants": {},
+      "special": "",
+      "potion": "strong_healing"
+    },
+    {
+      "id": "drinks_3",
+      "category": "drinks",
+      "name": "迅捷 I",
+      "item": "minecraft:potion",
+      "count": 1,
+      "price": {
+        "bronze": 0,
+        "iron": 7,
+        "gold": 0
+      },
+      "enchants": {},
+      "special": "",
+      "potion": "swiftness"
+    },
+    {
+      "id": "drinks_4",
+      "category": "drinks",
+      "name": "力量 I",
+      "item": "minecraft:potion",
+      "count": 1,
+      "price": {
+        "bronze": 0,
+        "iron": 0,
+        "gold": 1
+      },
+      "enchants": {},
+      "special": "",
+      "potion": "strength"
+    },
+    {
+      "id": "drinks_5",
+      "category": "drinks",
+      "name": "再生 I",
+      "item": "minecraft:potion",
+      "count": 1,
+      "price": {
+        "bronze": 0,
+        "iron": 0,
+        "gold": 3
+      },
+      "enchants": {},
+      "special": "",
+      "potion": "regeneration"
+    }
+  ]
+}

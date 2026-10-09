@@ -1,0 +1,32 @@
+# Local build tools and outputs
+.gradle/
+build/
+out/
+.idea/
+*.iml
+*.class
+*.jar
+*.zip
+*.log
+__pycache__/
+*.pyc
+deps/*
+!deps/README.md
+inputs/
+output/
+run/
+run-*/
+server-test/
+world/
+worlds/
+saves/
+.minecraft/
+.env
+.env.*
+secrets.*
+
+# Effekseer editor and derived exports
+tools/effekseer/effekseer-1.80.7/
+tools/effekseer/authored/*.efkefc
+tools/effekseer/authored/*.roundtrip.xml
+tools/effekseer/export-verification.json
