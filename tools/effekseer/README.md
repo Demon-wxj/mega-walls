@@ -10,4 +10,4 @@
 ./export_ender_effeks.ps1
 ```
 
-脚本先生成 `authored/`，再用官方 CLI 导出并回读检查。显式添加 `-InstallAssets` 才将结果复制到本仓库的 `src/main/resources/assets/megawalls/effeks/`。本次公开整理没有执行生成、导出或游戏测试。AAA 2.3.0 是独立运行依赖，源码来源 [ChloePrime/AAAParticles](https://github.com/ChloePrime/AAAParticles/tree/0af9a6817c85c090e1cc2c2c4dd5f2b430bea1e4)，不复制其样例效果。
+脚本先生成 `authored/`，再用官方 CLI 导出并回读检查。显式添加 `-InstallAssets` 才将结果复制到本仓库的 `src/main/resources/assets/megawalls/effeks/`。这些脚本尚未重新运行或进游戏测试。AAA 2.3.0 是独立运行依赖，源码来源 [ChloePrime/AAAParticles](https://github.com/ChloePrime/AAAParticles/tree/0af9a6817c85c090e1cc2c2c4dd5f2b430bea1e4)，不复制其样例效果。

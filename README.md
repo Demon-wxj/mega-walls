@@ -1,17 +1,15 @@
-# Mega Walls Cinematic
+# Mega Walls
 
-超级战墙、对战与小游戏的独立发展分支，包含菜单、职业技能、舞台表现与地图互动。
+一个超级战墙与小游戏分支，包含职业技能、菜单、特效和场地互动。玩法参考 Hypixel Mega Walls，非官方项目。
 
-分类：小游戏与战墙。原本地版本 `1.18.38-tnt-floor-mc1.21.1`，运行目标 Minecraft **1.21.1 / Fabric / Java 21**。Mod ID：`megawalls`。
+Minecraft **1.21.1 / Fabric / Java 21**。源码版本 `1.18.38-tnt-floor-mc1.21.1`，Mod ID：`megawalls`。
 
-本工程与 `mw-mod` 是不同发展分支，但 Mod ID 均为 `megawalls`。两者不能同时放进同一个 `mods/`；选择对应地图与数据包的一个分支。历史 repair/backup 没有各自建仓。
+按 **M** 打开战墙菜单，按 **V** 释放技能；`/games` 打开小游戏入口。客户端和服务器都要安装，并准备对应的地图和数据包。
 
-公开副本排除了缺少公开授权的美术。保留的渲染代码可能仍引用原资源路径，缺少授权资源时可能显示缺失纹理或模型；不会把本副本称为完整可运行美术发行版。完整运行需要自行提供有权使用的对应资源，或后续替换为新的原创资源。
+**不要同时安装另一个使用 `megawalls` Mod ID 的版本。**运行需要 AAA Particles 2.3.0；编译还需要 Tabletop 0.4.2，尚未验证能否用 Tabletop 仓库中的 0.5.8 替代。
 
-本次公开整理仅完成源码筛选、相对依赖配置、中文文档和静态校验；未重新构建、启动 Minecraft 或验证多人玩法，历史本机测试不等于本副本通过验证。
+仓库未包含无公开授权的皮肤、头像和图标。渲染代码仍可能引用这些路径，会出现缺失纹理或模型；完整显示需补入有权使用的资源，或自行替换。Effekseer 特效源文件和工具在 [tools/effekseer](tools/effekseer/README.md)。
 
-- [构建与限制](BUILDING.md)
-- [安装与使用](INSTALLATION.md)
-- [第三方来源和许可范围](THIRD_PARTY_NOTICES.md)
+[构建](BUILDING.md) · [安装](INSTALLATION.md) · [来源与许可](THIRD_PARTY_NOTICES.md)
 
-许可：GPL-3.0-only（原创代码；第三方例外见说明）。已有作者、来源和逐文件许可保留；不以仓库总许可覆盖第三方素材。
+代码采用 GPL-3.0-only；第三方部分按各自许可保留署名。整理时未重新编译或进游戏测试。

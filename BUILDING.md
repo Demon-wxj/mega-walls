@@ -1,21 +1,19 @@
 # 构建
 
-使用 **JDK 21、Gradle 8.12、Fabric Loom 1.9 系列**。本仓库不附本机 JDK、Gradle 缓存或 Gradle Wrapper 二进制，先在你的环境中安装匹配工具。`settings.gradle` 使用 Fabric Maven、Maven Central 与 Gradle Plugin Portal；首次构建需要网络。
+先安装 **JDK 21 和 Gradle 8.12**。项目使用 Fabric Loom 1.9 系列；仓库没有 Gradle Wrapper，首次构建需要联网获取 Maven 依赖。
 
 ```powershell
 gradle --version
 gradle clean build --console=plain
 ```
 
-产物应位于 `build/libs/`。安装普通重映射生产 JAR；`-sources.jar` 与开发 JAR 不装入游戏。发布副本的构建脚本保留 main/client/test 生产源码编译，将原本机 repair Maven、外部测试世界与 smoke 入口去除，不自动下载或安装游戏。
+构建产物在 `build/libs/`。安装生产 JAR，不要把 `-sources.jar` 或开发 JAR 放入游戏。
 
-构建前需合法获得以下准确版本，放入本仓库的 `deps/`（文件名与 build.gradle 一致）；这些外部 JAR 不提交 Git：
+以下依赖需自行从合法渠道取得，按列出的文件名放入 `deps/`。仓库不附这些 JAR：
 
 - `deps/aaa_particles-fabric-1.21.1-2.3.0.jar`（modImplementation）
 - `deps/tabletop-0.4.2+mc1.21.1.jar`（modCompileOnly）
 
-当前源码编译引用 Tabletop 0.4.2 的 API；发布的另一 Tabletop 工程为 0.5.8。尚未验证新版本可以替代该编译依赖，缺少 0.4.2 时不能承诺本仓库可直接构建。AAA Particles 2.3.0 必须另行获取。原创 Effekseer 导出资产保留；其历史原创生成器、可编辑工程和导出工具已归集到 `tools/effekseer/`，详见该目录 README。第三方编辑器需另行获取。
+源码引用 Tabletop 0.4.2 的 API。Tabletop 仓库的源码版本是 0.5.8，尚未验证能否替代 0.4.2；缺少旧版依赖时可能无法构建。AAA Particles 2.3.0 也需单独取得。Effekseer 特效源文件、生成器和导出工具见 [tools/effekseer](tools/effekseer/README.md)，第三方编辑器不包含在仓库中。
 
-公开副本排除了缺少公开授权的美术。保留的渲染代码可能仍引用原资源路径，缺少授权资源时可能显示缺失纹理或模型；不会把本副本称为完整可运行美术发行版。完整运行需要自行提供有权使用的对应资源，或后续替换为新的原创资源。
-
-本轮只核查配置、JSON、文档链接、脚本语法、发布文件与来源快照。未运行 Gradle 编译或游戏，不能用此记录代替构建和多人验证。
+未包含无公开授权的美术，代码仍可能引用原资源路径，导致缺失纹理或模型。需要补入有权使用的资源，或自行替换。

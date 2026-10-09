@@ -1,2 +1,2 @@
 pluginManagement { repositories { maven { url 'https://maven.fabricmc.net/' }; mavenCentral(); gradlePluginPortal() } }
-rootProject.name = 'megawalls-cinematic-1211'
+rootProject.name = 'mega-walls'
