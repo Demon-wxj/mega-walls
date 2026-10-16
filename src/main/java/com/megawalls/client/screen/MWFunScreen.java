@@ -19,6 +19,7 @@ public final class MWFunScreen extends Screen {
         super(Text.literal("个人娱乐面板")); flags = state.flags(); reach = state.reach(); speed = state.speed();
     }
     public static void register() {
+        com.megawalls.client.FunSpinClient.register();
         ClientPlayNetworking.registerGlobalReceiver(FunPayload.ID, (state, context) -> context.client().execute(() -> {
             localFlags = state.flags();
             localSpeed = state.speed();
@@ -67,7 +68,7 @@ public final class MWFunScreen extends Screen {
     }
     @Override protected void init() {
         button(toggle("杀戮光环", FunMode.AURA), "暴力模式：每 tick 自动攻击最多 8 个范围内可见敌人，不等待武器冷却；保留队伍和受伤无敌时间规则。", 0, 1, () -> update(flags ^ FunMode.AURA, reach, speed));
-        button(toggle("超级搭路", FunMode.BRIDGE), "主手或副手拿完整方块，按移动路径消耗物品铺路；跳跃保持桥面高度。", 1, 1, () -> update(flags ^ FunMode.BRIDGE, reach, speed));
+        button(toggle("超级搭路", FunMode.BRIDGE), "主手或副手拿完整方块，按移动路径消耗物品铺路；真实跳跃跨过整格后向上铺一层。", 1, 1, () -> update(flags ^ FunMode.BRIDGE, reach, speed));
         button(toggle("空中行走", FunMode.AIR), "空格上升、Shift 下降；飞行时不执行地面连跳。", 0, 2, () -> update(flags ^ FunMode.AIR, reach, speed));
         button("攻击距离 " + (reach == 3 ? "原版" : "+" + (reach - 3) + " 格"), "点击循环原版、+3、+6、+9 格，手动攻击也生效。", 1, 2, () -> update(flags, reach == 12 ? 3 : reach + 3, speed));
         button("移动速度 " + speed + " 倍", "点击循环 1、2、4、8 倍，同时影响步行与飞行。", 0, 3, () -> update(flags, reach, speed == 8 ? 1 : speed * 2));

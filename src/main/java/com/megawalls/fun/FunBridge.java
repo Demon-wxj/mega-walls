@@ -58,6 +58,11 @@ public final class FunBridge {
         if (discontinuity || supported) {
             // A whole block must end below the feet; a half-block surface must never embed the player.
             bridgeY = MathHelper.floor(feet.y + EPSILON) - 1;
+        } else if (!player.getAbilities().flying && feet.y > from.y + .02
+                && MathHelper.floor(feet.y + EPSILON) - 1 > bridgeY) {
+            // A real jump may build a staircase/tower once a complete block fits below
+            // the rising feet. Never predict a higher block while it intersects the body.
+            bridgeY = MathHelper.floor(feet.y + EPSILON) - 1;
         }
         if (discontinuity) from = feet;
         previousFeet = feet;

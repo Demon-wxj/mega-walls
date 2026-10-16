@@ -89,7 +89,10 @@ public final class GameEvents {
                     var objective = board.getNullableObjective("mw_wither_" + team);
                     if (objective != null) {
                         var hp = board.getOrCreateScore(ScoreHolder.fromName("#global"), objective);
-                        hp.setScore(Math.max(0, hp.getScore() - coreDamage(wither,amount)));
+                        if(hp.getScore()>0){
+                            int damage=Math.min(hp.getScore(),coreDamage(wither,amount));
+                            if(damage>0){hp.setScore(hp.getScore()-damage);com.megawalls.wither.WitherDefense.onHit(wither,attacker,damage,hp.getScore());}
+                        }
                     }
                 }
                 // Core health lives only in the scoreboard; vanilla health cannot desynchronize it.

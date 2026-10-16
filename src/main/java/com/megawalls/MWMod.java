@@ -38,6 +38,7 @@ public class MWMod implements ModInitializer {
         NetworkHandler.register();
         com.megawalls.minigame.LobbyItems.register();
         com.megawalls.minigame.Isolation.register();
+        com.megawalls.minigame.GameDifficulty.register();
         com.megawalls.minigame.HotPotato.register();
         com.megawalls.minigame.Spleef.register();
         com.megawalls.minigame.TntRun.register();

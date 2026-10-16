@@ -27,7 +27,7 @@ public final class PrivateSidebar {
         lines=new ArrayList<>(lines);
         if(lines.size()>12)lines=new ArrayList<>(lines.subList(0,12));
         lines.add(Text.literal(" "));
-        lines.add(Text.literal("Xteamy").formatted(net.minecraft.util.Formatting.GOLD,net.minecraft.util.Formatting.BOLD));
+        lines.add(Text.literal(BteamEra.displayName(p.getServer())).formatted(net.minecraft.util.Formatting.GOLD,net.minecraft.util.Formatting.BOLD));
         lines.add(Text.empty().append(Text.literal("bilibili").styled(st->st.withColor(0xFF91BD))).append(Text.literal(" 房间号：").formatted(net.minecraft.util.Formatting.WHITE)).append(Text.literal("88888").formatted(net.minecraft.util.Formatting.AQUA)));
         hideNumbers=true;
         var id=p.getUuid();String titleKey=title.toString()+hideNumbers;

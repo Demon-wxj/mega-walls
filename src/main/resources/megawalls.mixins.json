@@ -5,6 +5,8 @@
   "mixins": [
     "MWHurtMemoryAccessor",
     "MWPlayerProtectionAccessor",
+    "GameAdvancementMixin",
+    "WitherTargetMixin",
     "MWTerrainJournalMixin",
     "MWTerrainContainerMixin",
     "MWTerrainSpawnMixin",

@@ -1,17 +1,16 @@
-// Publication copy: portable production build. Local test worlds and repair fixtures are excluded.
+// Portable production build; runtime dependencies are obtained separately.
 plugins { id 'fabric-loom' version '1.9-SNAPSHOT'; id 'java' }
 version = project.mod_version
 group = project.maven_group
 base { archivesName = project.archives_base_name }
 repositories { mavenCentral(); maven { url 'https://maven.fabricmc.net/' } }
-
 dependencies {
     minecraft "com.mojang:minecraft:${project.minecraft_version}"
     mappings "net.fabricmc:yarn:${project.yarn_mappings}:v2"
     modImplementation "net.fabricmc:fabric-loader:${project.loader_version}"
     modImplementation "net.fabricmc.fabric-api:fabric-api:${project.fabric_version}"
     modImplementation files('deps/aaa_particles-fabric-1.21.1-2.3.0.jar')
-    modCompileOnly files('deps/tabletop-0.4.2+mc1.21.1.jar')
+    modCompileOnly files('deps/tabletop-0.5.10+mc1.21.1.jar')
 }
 java { sourceCompatibility = JavaVersion.VERSION_21; targetCompatibility = JavaVersion.VERSION_21; withSourcesJar() }
 tasks.withType(JavaCompile).configureEach { options.release = 21; options.encoding = 'UTF-8' }

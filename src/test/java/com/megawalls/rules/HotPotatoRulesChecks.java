@@ -14,6 +14,13 @@ public final class HotPotatoRulesChecks {
         expect(HotPotatoRules.secondsForRound(schedule,4,3,45)==60,"three players keep configured round");
         expect(HotPotatoRules.secondsForRound(new int[]{90,60,45,30,20},2,6,15)==60,"existing schedule retained");
         expect(HotPotatoRules.secondsForRound(new int[]{8,8,8,8,8},1,2,15)==8,"final never lengthens configured fuse");
+        int[] shorterSchedule={110,90,70,50,35},shortened={110,90,70,50,35,33,31,29,27,25,23,21,19,17,15};
+        for(int i=0;i<shortened.length;i++)expect(HotPotatoRules.secondsForRound(shorterSchedule,i+1,16-i,20,2,5)==shortened[i],"sixteen-player shorter configured round and continuing two-second shortening "+(i+1));
+        expect(HotPotatoRules.secondsForRound(schedule,10000,3,30,2,5)==5,"long schedule stops at minimum instead of underflowing");
+        expect(HotPotatoRules.secondsForRound(new int[]{90,90,120,90,90},3,6,30,2,5)==86,"custom nondecreasing cap still shortens on every new round");
+        expect(HotPotatoRules.secondsForRound(shorterSchedule,1,8,20,2,5)==110,"new match round one uses the shorter configured first duration again");
+        expect(HotPotatoRules.secondsForRound(shorterSchedule,4,2,20,2,5)==20,"final two-player round uses the shorter final limit");
+        expect(HotPotatoRules.secondsForRound(schedule,9,6,30,0,5)==45,"explicit zero decrease retains configured last duration");
 
         int fuse=1000,lock=920;
         expect(!HotPotatoRules.canPassAt(919,lock,fuse),"new recipient cannot return tag during lock");

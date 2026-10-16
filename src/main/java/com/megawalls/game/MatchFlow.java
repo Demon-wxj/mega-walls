@@ -115,6 +115,13 @@ public final class MatchFlow {
         core.refreshPositionAndAngles(pos.getX()+.5,pos.getY(),pos.getZ()+.5,0,0);core.setAiDisabled(true);core.setNoGravity(true);core.setPersistent();core.addCommandTag("mw_wither_"+team);
         core.setCustomName(Text.literal(MatchTeams.label(team)+"凋零").formatted(MatchTeams.color(team)));core.setCustomNameVisible(true);s.getOverworld().spawnEntity(core);
     }
+    /** A missing visual objective can be repaired only while its authoritative HP is positive. */
+    private static void ensureCores(MinecraftServer s){
+        for(String team:MatchTeams.active(s))if(GameState.score(s.getScoreboard(),"#global","mw_wither_"+team)>0
+                &&!com.megawalls.wither.WitherDefense.hasCore(s,team)){
+            holdCoreChunk(s,team,true);spawnCore(s,team);
+        }
+    }
     private static void removeCore(MinecraftServer s,String team){for(var w:s.getWorlds())for(var e:w.iterateEntities())if(e instanceof WitherEntity&&e.getCommandTags().contains("mw_wither_"+team))e.discard();}
     private static void holdCoreChunk(MinecraftServer s,String team,boolean hold){
         var p=MapConfig.point(s,team+"wither");int x=p.getX()>>4,z=p.getZ()>>4;var w=s.getOverworld();String key=team+"_forced_by_match";
@@ -140,6 +147,7 @@ public final class MatchFlow {
             if(clearWall(s)){phase(s,2);announce(s,"§6墙已倒塌，攻击敌方凋零！");}return;
         }
         if(time%20!=0)return;
+        if(phase==1||phase==2)ensureCores(s);
         if(phase==1){int left=MapConfig.get(s,"prep")-time/20;if(left==30||left<=5)announce(s,"§e拆墙倒计时："+left+" 秒");}
         var online=new HashSet<String>();for(var p:s.getPlayerManager().getPlayerList())online.add(p.getName().getString());
         for(var e:new ArrayList<>(s.getScoreboard().getScoreboardEntries(MapConfig.objective(s,"mw_roster"))))if(e.value()>0){

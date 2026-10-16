@@ -46,7 +46,7 @@ public final class HubMenu {
             {"megawalls","超级战墙","iron_sword"}, {"classic_pvp","UHC PvP","diamond_sword"},
             {"pot_pvp","PVP Pot 药水对战","splash_potion"}, {"final_duel","决一死战","snowball"},
             {"tnt_run","TNT 跑酷","tnt"}, {"hot_potato","烫手山芋","baked_potato"},
-            {"bedwars","起床战争","red_bed"}, {"flip7","七连翻","paper"}, {"clocktower","染钟楼谜团","book"}, {"sao_story","SAO 小剧情","enchanted_book"}, {"hub","总大厅","nether_star"}})
+            {"bedwars","起床战争","red_bed"}, {"flip7","七连翻","paper"}, {"clocktower","染钟楼谜团","book"}, {"sao_story","城门周年庆SAO-MV","enchanted_book"}, {"hub","总大厅","nether_star"}})
             result.add(new Destination(row[0],row[1],"minecraft:"+row[2],"minecraft:overworld",0,0,0,0,0,false));
         for(int i=0;i<result.size();i++){var e=result.get(i);if(TabletopBridge.destination(e.id()))result.set(i,new Destination(e.id(),e.name(),e.id().equals("flip7")?"tabletop:flip_deck":"tabletop:clock_box",e.dimension(),e.x(),e.y(),e.z(),e.yaw(),e.pitch(),e.configured()));}
         return result;
@@ -105,7 +105,7 @@ public final class HubMenu {
                 if(!valid(e)||next.putIfAbsent(e.id(),e)!=null||next.size()>21)throw new IllegalArgumentException("Invalid or duplicate menu destination");
             }}else for(var e:defaults())next.put(e.id(),e);
             if(!next.containsKey("hub"))next.put("hub",new Destination("hub","总大厅","minecraft:nether_star","minecraft:overworld",0,0,0,0,0,false));
-            if(!next.containsKey("sao_story")&&next.size()<21)next.put("sao_story",new Destination("sao_story","SAO 小剧情","minecraft:enchanted_book","minecraft:overworld",0,0,0,0,0,false));
+            if(!next.containsKey("sao_story")&&next.size()<21)next.put("sao_story",new Destination("sao_story","城门周年庆SAO-MV","minecraft:enchanted_book","minecraft:overworld",0,0,0,0,0,false));
             ENTRIES.clear();ENTRIES.putAll(next);configValid=true;
         }catch(Exception e){configValid=false;MWMod.LOGGER.error("Cannot load minigame-menu.json; previous entries retained",e);}
     }

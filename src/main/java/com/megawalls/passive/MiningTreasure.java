@@ -36,10 +36,10 @@ public final class MiningTreasure {
         public int molemanIronMultiplier=3;
         public int rolls=4;
         public List<Entry> loot=new ArrayList<>(List.of(
-            new Entry("minecraft:bread",2,4,20), new Entry("minecraft:cooked_beef",1,3,20),
-            new Entry("minecraft:baked_potato",2,5,15), new Entry("minecraft:arrow",4,12,20),
+            new Entry("minecraft:bread",4,8,20), new Entry("minecraft:cooked_beef",2,6,20),
+            new Entry("minecraft:baked_potato",4,10,15), new Entry("minecraft:arrow",8,24,20),
             new Entry("minecraft:iron_ingot",2,5,15), new Entry("minecraft:coal",2,6,8),
-            new Entry("minecraft:tnt",1,2,2), new Entry("minecraft:bow",1,1,3),
+            new Entry("minecraft:tnt",1,2,2), new Entry("minecraft:bow",1,1,6),
             new Entry("minecraft:torch",4,12,8), new Entry("minecraft:furnace",1,1,4),
             new Entry("minecraft:cobblestone",8,24,8), new Entry("minecraft:redstone",2,6,4),
             new Entry("minecraft:cake",1,1,3)));

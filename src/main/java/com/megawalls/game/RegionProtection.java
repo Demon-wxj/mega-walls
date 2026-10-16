@@ -41,6 +41,20 @@ public final class RegionProtection {
         return false;
     }
     private static boolean configuredCastle(ServerWorld w,BlockPos p){return region(w,p,"castle");}
+    /** Permanent barrier-backed shell, independent of the temporary opening walls.
+     * Event-local bounded queries: no map scans, chunk loads or dimension-wide lock.
+     */
+    public static boolean boundary(ServerWorld w,BlockPos p){
+        var s=w.getServer();if(w!=s.getOverworld()||MapConfig.get(s,"arena1_set")!=1||MapConfig.get(s,"arena2_set")!=1||wallState(w,p)!=0)return false;
+        var a=MapConfig.point(s,"arena1");var b=MapConfig.point(s,"arena2");
+        if(p.getX()<Math.min(a.getX(),b.getX())-4||p.getX()>Math.max(a.getX(),b.getX())+4||p.getZ()<Math.min(a.getZ(),b.getZ())-4||p.getZ()>Math.max(a.getZ(),b.getZ())+4)return false;
+        if(w.getBlockState(p).isOf(Blocks.BARRIER))return true;
+        for(var direction:net.minecraft.util.math.Direction.Type.HORIZONTAL)for(int distance=1;distance<=4;distance++)for(int dy=-1;dy<=1;dy++){
+            var behind=p.offset(direction,distance).up(dy);
+            if(w.isChunkLoaded(behind)&&wallState(w,behind)==0&&w.getBlockState(behind).isOf(Blocks.BARRIER))return true;
+        }
+        return false;
+    }
     public static boolean wither(ServerWorld w,BlockPos p){return MatchFlow.phase(w.getServer())!=3&&region(w,p,"witherzone");}
     public static boolean castle(ServerWorld w,BlockPos p){return MatchFlow.phase(w.getServer())!=3&&wallState(w,p)!=2&&configuredCastle(w,p);}
     private static boolean otherProtected(ServerWorld w,BlockPos p){
@@ -48,8 +62,8 @@ public final class RegionProtection {
         if(com.megawalls.minigame.HotPotato.stage()==com.megawalls.minigame.HotPotato.Stage.RUNNING&&com.megawalls.minigame.HotPotato.inside(w,p))return true;
         return false;
     }
-    public static boolean contains(ServerWorld w,BlockPos p){return otherProtected(w,p)||wither(w,p)||wallState(w,p)==1||castle(w,p);}
-    private static boolean builder(PlayerEntity p,ServerWorld w,BlockPos pos){return p.isCreative()&&(!(wither(w,pos)||wallState(w,pos)==1||castle(w,pos))||!MatchFlow.running(w.getServer()));}
+    public static boolean contains(ServerWorld w,BlockPos p){return otherProtected(w,p)||wither(w,p)||wallState(w,p)==1||boundary(w,p)||castle(w,p);}
+    private static boolean builder(PlayerEntity p,ServerWorld w,BlockPos pos){return p.isCreative()&&(!(wither(w,pos)||wallState(w,pos)==1||boundary(w,pos)||castle(w,pos))||!MatchFlow.running(w.getServer()));}
     private static final class Placed extends PersistentState {
         final Set<Long> positions=new HashSet<>();
         static final Type<Placed> TYPE=new Type<>(Placed::new,(nbt,lookup)->{var value=new Placed();for(long p:nbt.getLongArray("positions"))value.positions.add(p);return value;},null);
@@ -65,9 +79,9 @@ public final class RegionProtection {
     private static boolean blocked(PlayerEntity p,ServerWorld w,BlockPos pos){
         if(wallState(w,pos)==1)return true;
         if(builder(p,w,pos))return false;
-        return otherProtected(w,pos)||wither(w,pos)||castle(w,pos)&&!placed(w).positions.contains(pos.asLong());
+        return otherProtected(w,pos)||wither(w,pos)||boundary(w,pos)||castle(w,pos)&&!placed(w).positions.contains(pos.asLong());
     }
-    private static ActionResult deny(PlayerEntity p){p.sendMessage(net.minecraft.text.Text.literal("§e原建筑受到保护；凋零区和未开放的分隔墙禁止改动。"),true);return ActionResult.FAIL;}
+    private static ActionResult deny(PlayerEntity p){p.sendMessage(net.minecraft.text.Text.literal("§e原建筑受到保护；外侧屏障墙、凋零区和未开放的分隔墙禁止改动。"),true);return ActionResult.FAIL;}
     private static void flushPlacements(net.minecraft.server.MinecraftServer s){
         for(var attempt:pending)if(attempt.world.getServer()==s&&castle(attempt.world,attempt.pos)
             &&!wither(attempt.world,attempt.pos)&&!attempt.world.getBlockState(attempt.pos).isAir()){
@@ -90,8 +104,8 @@ public final class RegionProtection {
                     :blockItem.getBlock() instanceof DoorBlock||blockItem.getBlock() instanceof TallPlantBlock?dest.up():null;
                 if(wallState(sw,dest)==1||second!=null&&wallState(sw,second)==1)return deny(p);
                 if(builder(p,sw,target)){removeMarker(sw,dest);if(second!=null)removeMarker(sw,second);return ActionResult.PASS;}
-                if(otherProtected(sw,dest)||wither(sw,dest)||castle(sw,dest)&&!w.getBlockState(dest).isAir()
-                    ||second!=null&&(otherProtected(sw,second)||wither(sw,second)||castle(sw,second)&&!w.getBlockState(second).isAir()))return deny(p);
+                if(otherProtected(sw,dest)||wither(sw,dest)||boundary(sw,dest)||castle(sw,dest)&&!w.getBlockState(dest).isAir()
+                    ||second!=null&&(otherProtected(sw,second)||wither(sw,second)||boundary(sw,second)||castle(sw,second)&&!w.getBlockState(second).isAir()))return deny(p);
                 if(castle(sw,dest)&&w.getBlockState(dest).isAir())pending.add(new Placement(sw,dest.toImmutable()));
                 if(second!=null&&castle(sw,second)&&w.getBlockState(second).isAir())pending.add(new Placement(sw,second.toImmutable()));
                 return ActionResult.PASS;

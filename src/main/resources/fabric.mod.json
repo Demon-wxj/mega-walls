@@ -4,24 +4,16 @@
   "version": "${version}",
   "name": "超级战墙 Mod",
   "description": "超级战墙、对战与小游戏。",
-  "authors": [
-    "MW Team"
-  ],
+  "authors": ["MW Team"],
   "contact": {},
-  "license": "GPL-3.0-only",
+  "license": "MIT",
+  "icon": "assets/megawalls/icon.png",
   "environment": "*",
   "entrypoints": {
-    "main": [
-      "com.megawalls.MWMod"
-    ],
-    "client": [
-      "com.megawalls.client.MWClient"
-    ]
+    "main": ["com.megawalls.MWMod"],
+    "client": ["com.megawalls.client.MWClient"]
   },
-  "mixins": [
-    "megawalls.mixins.json",
-    "interaction-compat.mixins.json"
-  ],
+  "mixins": ["megawalls.mixins.json", "interaction-compat.mixins.json"],
   "breaks": {
     "tabletop": "<0.4.1"
   },

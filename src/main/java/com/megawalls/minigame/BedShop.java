@@ -104,27 +104,48 @@ public final class BedShop {
     }
     private static String price(Offer o){var list=new ArrayList<String>();o.price.forEach((type,n)->{if(n>0)list.add(n+" "+label(type));});return String.join(" + ",list);}
     public static boolean buy(ServerPlayerEntity p,Offer o){
+        return buy(p,o,false);
+    }
+    /** Simulate complete purchases in copies, then commit once. Never charge a failed fit. */
+    public static boolean buy(ServerPlayerEntity p,Offer o,boolean bulk){
         if(!valid||!BedWars.fighter(p)||!config.offers.contains(o))return false;
         var temp=new ArrayList<ItemStack>();for(int i=0;i<36;i++)temp.add(p.getInventory().getStack(i).copy());
-        for(var cost:o.price.entrySet()){int remaining=cost.getValue();for(var stack:temp)if(money(stack,cost.getKey())){int take=Math.min(remaining,stack.getCount());stack.decrement(take);remaining-=take;}if(remaining>0){p.sendMessage(Text.literal("资源不足：需要 "+price(o)),true);return false;}}
-        var reward=reward(p,o);for(var stack:temp)if(ItemStack.areItemsAndComponentsEqual(stack,reward)){int add=Math.min(reward.getCount(),stack.getMaxCount()-stack.getCount());stack.increment(add);reward.decrement(add);}
-        for(int i=0;i<36&&!reward.isEmpty();i++)if(temp.get(i).isEmpty()){int n=Math.min(reward.getCount(),reward.getMaxCount());temp.set(i,reward.copyWithCount(n));reward.decrement(n);}
-        if(!reward.isEmpty()){p.sendMessage(Text.literal("背包空间不足，没有扣款。"),true);return false;}
-        for(int i=0;i<36;i++)p.getInventory().setStack(i,temp.get(i));p.currentScreenHandler.syncState();p.sendMessage(Text.literal("购买 "+o.name+" ×"+o.count+"，花费 "+price(o)),true);return true;
+        var template=reward(p,o);int bought=0;boolean noSpace=false;
+        // Every offer has a positive cost and at least one reward. 36 full inventory
+        // slots bound successful iterations, including unstackable rewards.
+        int limit=bulk?36*template.getMaxCount()/o.count:1;
+        while(bought<limit){
+            var attempt=new ArrayList<ItemStack>();for(var stack:temp)attempt.add(stack.copy());
+            boolean funded=true;
+            for(var cost:o.price.entrySet()){
+                int remaining=cost.getValue();for(var stack:attempt)if(money(stack,cost.getKey())){int take=Math.min(remaining,stack.getCount());stack.decrement(take);remaining-=take;}
+                if(remaining>0){funded=false;break;}
+            }
+            if(!funded)break;
+            var reward=template.copy();
+            for(var stack:attempt)if(!stack.isEmpty()&&ItemStack.areItemsAndComponentsEqual(stack,reward)){int add=Math.max(0,Math.min(reward.getCount(),stack.getMaxCount()-stack.getCount()));stack.increment(add);reward.decrement(add);}
+            for(int i=0;i<36&&!reward.isEmpty();i++)if(attempt.get(i).isEmpty()){int n=Math.min(reward.getCount(),reward.getMaxCount());attempt.set(i,reward.copyWithCount(n));reward.decrement(n);}
+            if(!reward.isEmpty()){noSpace=true;break;}
+            temp=attempt;bought++;
+        }
+        if(bought==0){p.sendMessage(Text.literal(noSpace?"背包空间不足，没有扣款。":"资源不足：需要 "+price(o)),true);return false;}
+        for(int i=0;i<36;i++)p.getInventory().setStack(i,temp.get(i));p.getInventory().markDirty();p.currentScreenHandler.syncState();
+        var spent=new ArrayList<String>();int quantity=bought;o.price.forEach((type,n)->{if(n>0)spent.add((long)n*quantity+" "+label(type));});
+        p.sendMessage(Text.literal((bulk?"批量购买 ":"购买 ")+o.name+" ×"+(long)o.count*bought+"，花费 "+String.join(" + ",spent)+(noSpace?"；剩余资源保留（背包已满）":"")),true);return true;
     }
     public static void open(ServerPlayerEntity p,VillagerEntity npc){if(!BedWars.shopAllowed(p,npc))return;p.openHandledScreen(new SimpleNamedScreenHandlerFactory((id,inv,player)->new Menu(id,inv,npc),Text.literal("商店")));}
     public static final class Menu extends GenericContainerScreenHandler {
         private final UUID owner,npc;private final String round;private int lastBuy=Integer.MIN_VALUE;private String category="";private final Map<Integer,Offer> slots=new HashMap<>();
         public Menu(int id,PlayerInventory inv,VillagerEntity npc){super(ScreenHandlerType.GENERIC_9X6,id,inv,new SimpleInventory(54),6);owner=inv.player.getUuid();this.npc=npc.getUuid();round=BedWars.roundId();show((ServerPlayerEntity)inv.player,"");}
         private void show(ServerPlayerEntity p,String category){this.category=category;getInventory().clear();slots.clear();for(int i=0;i<CATEGORIES.length;i++){var icon=new ItemStack(ICONS[i]);icon.set(DataComponentTypes.CUSTOM_NAME,Text.literal(LABELS[i]));getInventory().setStack(i,icon);}
-            int slot=18;for(var o:config.offers)if(o.category.equals(category)){var icon=reward(p,o);icon.set(DataComponentTypes.LORE,new LoreComponent(List.of(Text.literal(price(o)),Text.literal("左键购买"))));getInventory().setStack(slot,icon);slots.put(slot++,o);}
+            int slot=18;for(var o:config.offers)if(o.category.equals(category)){var icon=reward(p,o);icon.set(DataComponentTypes.LORE,new LoreComponent(List.of(Text.literal(price(o)),Text.literal("左键：购买一份；Shift＋左键：按现有资源批量购买"))));getInventory().setStack(slot,icon);slots.put(slot++,o);}
             var exit=new ItemStack(Items.BUCKET);exit.set(DataComponentTypes.CUSTOM_NAME,Text.literal("关闭商店"));getInventory().setStack(49,exit);sendContentUpdates();
         }
         @Override public boolean canUse(PlayerEntity p){return p instanceof ServerPlayerEntity sp&&p.getUuid().equals(owner)&&round.equals(BedWars.roundId())&&sp.getServerWorld().getEntity(npc) instanceof VillagerEntity v&&BedWars.shopAllowed(sp,v);}
         @Override public ItemStack quickMove(PlayerEntity p,int slot){return ItemStack.EMPTY;}
-        @Override public void onSlotClick(int slot,int button,SlotActionType action,PlayerEntity player){if(!(player instanceof ServerPlayerEntity p)||p.currentScreenHandler!=this||!canUse(p)||button!=0||action!=SlotActionType.PICKUP)return;
+        @Override public void onSlotClick(int slot,int button,SlotActionType action,PlayerEntity player){if(!(player instanceof ServerPlayerEntity p)||p.currentScreenHandler!=this||!canUse(p)||button!=0||(action!=SlotActionType.PICKUP&&action!=SlotActionType.QUICK_MOVE))return;
             if(slot>=0&&slot<CATEGORIES.length){show(p,CATEGORIES[slot]);return;}if(slot==49){p.closeHandledScreen();return;}
-            var offer=slots.get(slot);if(offer!=null&&lastBuy!=p.getServer().getTicks()){lastBuy=p.getServer().getTicks();buy(p,offer);}
+            var offer=slots.get(slot);if(offer!=null&&lastBuy!=p.getServer().getTicks()){lastBuy=p.getServer().getTicks();buy(p,offer,action==SlotActionType.QUICK_MOVE);}
         }
     }
 }

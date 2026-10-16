@@ -46,7 +46,7 @@ public final class BedWars {
     public static class Config {
         public String dimension="minecraft:overworld";public Point corner1,corner2;
         public Map<String,Base> bases=new LinkedHashMap<>();public List<Generator> generators=new ArrayList<>();
-        public int teams=4,minPlayers=2,maxPerTeam=4,countdownSeconds=10,respawnSeconds=5,shieldTicks=40,maxSeconds=3600,bedLossSeconds=1800,bronzeTicks=20,ironTicks=200,goldTicks=400;
+        public int teams=4,minPlayers=2,maxPerTeam=4,countdownSeconds=10,respawnSeconds=5,shieldTicks=40,maxSeconds=3600,bedLossSeconds=1800,bronzeTicks=20,ironTicks=200,goldTicks=800;
         public Config(){for(var t:TEAMS)bases.put(t,new Base());}
     }
     private static final Gson JSON=new GsonBuilder().setPrettyPrinting().create();

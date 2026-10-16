@@ -31,11 +31,12 @@ public final class HotPotato {
     public enum Stage { WAITING, RUNNING, RESULT }
     public record Point(double x,double y,double z,float yaw,float pitch){}
     public static final class Config {
-        public int[] roundSeconds={120,100,80,60,45};
+        public int[] roundSeconds={110,90,70,50,35};
         /** Read and retain legacy JSON only; matches now start on a player's request. */
         @Deprecated public int countdownSeconds=10;
         public int minPlayers=2,maxPlayers=10,passCooldownTicks=10;
-        public int finalSeconds=45,resultSeconds=5,runnerSpeed=1,holderSpeed=2,passKnockbackPercent=25;
+        public int roundDecreaseSeconds=2,minimumRoundSeconds=5;
+        public int finalSeconds=20,resultSeconds=5,runnerSpeed=1,holderSpeed=2,passKnockbackPercent=25;
         public int assistThresholdSeconds=20,assistDurationSeconds=6,assistSpeed=3;
         public boolean assistRevealOthers=true;
         public String dimension="minecraft:overworld";
@@ -51,6 +52,7 @@ public final class HotPotato {
     private static final Identifier SPEED_ID=Identifier.of("megawalls","hot_potato_speed");
     private static final HotPotatoRules.HoldAssist holdAssist=new HotPotatoRules.HoldAssist();
     private static final Map<UUID,Boolean> roundGlowBefore=new HashMap<>(),assistGlowBefore=new HashMap<>();
+    private static final Map<UUID,Integer> punchAfter=new HashMap<>();
     private static boolean assistApplied;
     private static boolean validConfig=true;
     public static Stage stage(){return stage;}
@@ -66,10 +68,10 @@ public final class HotPotato {
     private static Path recovery(ServerPlayerEntity p){return p.getServer().getSavePath(WorldSavePath.ROOT).resolve("hot-potato-recovery").resolve(p.getUuidAsString()+".dat");}
     public static boolean hasRecovery(ServerPlayerEntity p){return Files.exists(recovery(p));}
     private static boolean save(MinecraftServer s){try{var tmp=file(s).resolveSibling("hot-potato.json.tmp");Files.writeString(tmp,new GsonBuilder().setPrettyPrinting().create().toJson(config));Files.move(tmp,file(s),StandardCopyOption.REPLACE_EXISTING);validConfig=true;return true;}catch(Exception e){MWMod.LOGGER.error("Cannot save hot potato config",e);return false;}}
-    private static boolean values(Config c){return c!=null&&c.roundSeconds!=null&&c.roundSeconds.length==5&&java.util.Arrays.stream(c.roundSeconds).allMatch(v->v>=5&&v<=300)&&c.minPlayers>=2&&c.maxPlayers>=c.minPlayers&&c.maxPlayers<=32&&c.passCooldownTicks>=1&&c.passCooldownTicks<=100&&c.finalSeconds>=5&&c.finalSeconds<=60&&c.resultSeconds>=3&&c.resultSeconds<=15&&c.runnerSpeed>=0&&c.runnerSpeed<=3&&c.holderSpeed>=c.runnerSpeed&&c.holderSpeed<=4&&c.passKnockbackPercent>=0&&c.passKnockbackPercent<=100&&c.assistThresholdSeconds>=1&&c.assistThresholdSeconds<=300&&c.assistDurationSeconds>=1&&c.assistDurationSeconds<=30&&c.assistSpeed>=0&&c.assistSpeed<=6&&c.spawns!=null&&c.spawns.size()<=32&&c.dimension!=null&&Identifier.tryParse(c.dimension)!=null;}
+    private static boolean values(Config c){return c!=null&&c.roundSeconds!=null&&c.roundSeconds.length==5&&java.util.Arrays.stream(c.roundSeconds).allMatch(v->v>=5&&v<=300)&&c.roundDecreaseSeconds>=0&&c.roundDecreaseSeconds<=30&&c.minimumRoundSeconds>=5&&c.minimumRoundSeconds<=60&&c.minimumRoundSeconds<=c.roundSeconds[0]&&c.minPlayers>=2&&c.maxPlayers>=c.minPlayers&&c.maxPlayers<=32&&c.passCooldownTicks>=1&&c.passCooldownTicks<=100&&c.finalSeconds>=c.minimumRoundSeconds&&c.finalSeconds<=60&&c.resultSeconds>=3&&c.resultSeconds<=15&&c.runnerSpeed>=0&&c.runnerSpeed<=3&&c.holderSpeed>=c.runnerSpeed&&c.holderSpeed<=4&&c.passKnockbackPercent>=0&&c.passKnockbackPercent<=100&&c.assistThresholdSeconds>=1&&c.assistThresholdSeconds<=300&&c.assistDurationSeconds>=1&&c.assistDurationSeconds<=30&&c.assistSpeed>=0&&c.assistSpeed<=6&&c.spawns!=null&&c.spawns.size()<=32&&c.dimension!=null&&Identifier.tryParse(c.dimension)!=null;}
     private static void load(MinecraftServer s){try{var next=Files.exists(file(s))?new Gson().fromJson(Files.readString(file(s)),Config.class):new Config();if(!values(next))throw new IllegalArgumentException("Invalid settings");config=next;validConfig=true;}catch(Exception e){validConfig=false;MWMod.LOGGER.error("Cannot read hot-potato.json",e);}}
     public static void register(){
-        ServerLifecycleEvents.SERVER_STARTED.register(s->{queue.clear();players.clear();alive.clear();holder=null;deadline=0;passAfter=0;round=0;resultText="";holdAssist.clear();assistApplied=false;roundGlowBefore.clear();assistGlowBefore.clear();stage=Stage.WAITING;load(s);});
+        ServerLifecycleEvents.SERVER_STARTED.register(s->{queue.clear();players.clear();alive.clear();holder=null;deadline=0;passAfter=0;round=0;resultText="";holdAssist.clear();assistApplied=false;roundGlowBefore.clear();assistGlowBefore.clear();punchAfter.clear();stage=Stage.WAITING;load(s);});
         ServerTickEvents.END_SERVER_TICK.register(HotPotato::tick);
         ServerPlayConnectionEvents.DISCONNECT.register((handler,s)->leave(handler.player));
         ServerLifecycleEvents.SERVER_STOPPING.register(s->{finish(s,null,"本局取消");returnToLobby(s);});
@@ -94,7 +96,7 @@ public final class HotPotato {
                 .then(CommandManager.argument("name",com.mojang.brigadier.arguments.StringArgumentType.word())
                 .then(CommandManager.argument("value",com.mojang.brigadier.arguments.IntegerArgumentType.integer(0,300)).executes(c->{
                     if(stage!=Stage.WAITING)return 0;var old=new Gson().toJson(config);int v=com.mojang.brigadier.arguments.IntegerArgumentType.getInteger(c,"value");
-                    switch(com.mojang.brigadier.arguments.StringArgumentType.getString(c,"name")){case "round1"->config.roundSeconds[0]=v;case "round2"->config.roundSeconds[1]=v;case "round3"->config.roundSeconds[2]=v;case "round4"->config.roundSeconds[3]=v;case "round5"->config.roundSeconds[4]=v;case "min"->config.minPlayers=v;case "max"->config.maxPlayers=v;case "pass"->config.passCooldownTicks=v;case "final"->config.finalSeconds=v;case "result"->config.resultSeconds=v;case "runnerSpeed"->config.runnerSpeed=v;case "holderSpeed"->config.holderSpeed=v;case "knockback"->config.passKnockbackPercent=v;case "assistAfter"->config.assistThresholdSeconds=v;case "assistDuration"->config.assistDurationSeconds=v;case "assistSpeed"->config.assistSpeed=v;case "assistReveal"->{if(v>1)return 0;config.assistRevealOthers=v==1;}default->{return 0;}}
+                    switch(com.mojang.brigadier.arguments.StringArgumentType.getString(c,"name")){case "round1"->config.roundSeconds[0]=v;case "round2"->config.roundSeconds[1]=v;case "round3"->config.roundSeconds[2]=v;case "round4"->config.roundSeconds[3]=v;case "round5"->config.roundSeconds[4]=v;case "decrease"->config.roundDecreaseSeconds=v;case "minimum"->config.minimumRoundSeconds=v;case "min"->config.minPlayers=v;case "max"->config.maxPlayers=v;case "pass"->config.passCooldownTicks=v;case "final"->config.finalSeconds=v;case "result"->config.resultSeconds=v;case "runnerSpeed"->config.runnerSpeed=v;case "holderSpeed"->config.holderSpeed=v;case "knockback"->config.passKnockbackPercent=v;case "assistAfter"->config.assistThresholdSeconds=v;case "assistDuration"->config.assistDurationSeconds=v;case "assistSpeed"->config.assistSpeed=v;case "assistReveal"->{if(v>1)return 0;config.assistRevealOthers=v==1;}default->{return 0;}}
                     if(!values(config)||!save(c.getSource().getServer())){config=new Gson().fromJson(old,Config.class);return 0;}c.getSource().sendFeedback(()->Text.literal("烫手山芋规则已保存。"),false);return 1;
                 }))))
             .then(CommandManager.literal("status").executes(c->{c.getSource().sendFeedback(()->Text.literal("烫手山芋："+stage+" / 排队 "+queue.size()+"/"+config.maxPlayers+" / 存活 "+alive.size()+" / "+issue(c.getSource().getServer())),false);return 1;}))));
@@ -159,7 +161,7 @@ public final class HotPotato {
             for(var saved:written)try{Files.deleteIfExists(recovery(saved));}catch(Exception ex){MWMod.LOGGER.error("Cannot remove unused hot potato recovery",ex);}
             tell(s,"档案备份失败，未开始");stage=Stage.WAITING;return false;
         }written.add(p);}
-        players.clear();players.addAll(queue);alive.clear();alive.addAll(queue);queue.clear();stage=Stage.RUNNING;round=0;roundGlowBefore.clear();assistGlowBefore.clear();assistApplied=false;holdAssist.clear();
+        players.clear();players.addAll(queue);alive.clear();alive.addAll(queue);queue.clear();stage=Stage.RUNNING;round=0;roundGlowBefore.clear();assistGlowBefore.clear();punchAfter.clear();assistApplied=false;holdAssist.clear();
         for(UUID id:players){var p=s.getPlayerManager().getPlayer(id);roundGlowBefore.put(id,p.isGlowingLocal());}
         int i=0;for(UUID id:players){var p=s.getPlayerManager().getPlayer(id);p.closeHandledScreen();com.megawalls.fun.FunMode.clear(p);p.getInventory().clear();p.clearStatusEffects();p.changeGameMode(GameMode.ADVENTURE);p.getAttributeInstance(net.minecraft.entity.attribute.EntityAttributes.GENERIC_MAX_HEALTH).setBaseValue(20);p.setHealth(20);p.setAbsorptionAmount(0);p.getHungerManager().setFoodLevel(20);p.getHungerManager().setSaturationLevel(5);teleport(p,config.spawns.get(i++%config.spawns.size()));}
         LobbyItems.refresh(s);nextRound(s);return true;
@@ -202,7 +204,7 @@ public final class HotPotato {
     }
     private static void nextRound(MinecraftServer s){
         if(alive.size()<=1){finish(s,alive.stream().findFirst().orElse(null),"对局结束");return;}
-        round++;int seconds=HotPotatoRules.secondsForRound(config.roundSeconds,round,alive.size(),config.finalSeconds);deadline=s.getTicks()+seconds*20;
+        round++;int seconds=HotPotatoRules.secondsForRound(config.roundSeconds,round,alive.size(),config.finalSeconds,config.roundDecreaseSeconds,config.minimumRoundSeconds);deadline=s.getTicks()+seconds*20;
         // The final duel starts from the configured spawn ring instead of hiding on opposite map edges.
         if(alive.size()==2){int i=0;for(UUID id:alive){var p=s.getPlayerManager().getPlayer(id);if(p!=null)teleport(p,config.spawns.get(i++%config.spawns.size()));}}
         var ids=new ArrayList<>(alive);assign(s,ids.get(s.getOverworld().random.nextInt(ids.size())));
@@ -219,11 +221,35 @@ public final class HotPotato {
         if(config.passKnockbackPercent>0){var delta=to.getPos().subtract(from.getPos());var horizontal=new Vec3d(delta.x,0,delta.z);if(horizontal.lengthSquared()>.0001){var push=horizontal.normalize().multiply(config.passKnockbackPercent/100.0);to.addVelocity(push.x,.08,push.z);to.velocityModified=true;to.networkHandler.sendPacket(new net.minecraft.network.packet.s2c.play.EntityVelocityUpdateS2CPacket(to));}}
         return true;
     }
+    /** Melee is a real server hit; only the potato's fuse eliminates players. */
+    public static boolean attack(ServerPlayerEntity from,ServerPlayerEntity to){
+        var s=from.getServer();if(stage!=Stage.RUNNING)return false;
+        if(s.getTicks()>=deadline){expire(s);return false;}
+        if(from==to||!alive.contains(from.getUuid())||!alive.contains(to.getUuid())||!member(from)||!member(to)
+            ||!from.isAlive()||!to.isAlive()||from.isSpectator()||to.isSpectator()||!GameSessions.same(from,to)
+            ||!inside(from.getServerWorld(),from.getBlockPos())||!inside(to.getServerWorld(),to.getBlockPos())
+            ||from.squaredDistanceTo(to)>9||!from.canInteractWithEntity(to,0)||!from.canSee(to))return false;
+        boolean carrying=from.getUuid().equals(holder);var stack=from.getMainHandStack();
+        var data=stack.get(DataComponentTypes.CUSTOM_DATA);
+        boolean potato=stack.isOf(Items.BAKED_POTATO)&&data!=null&&data.copyNbt().getBoolean("mg_bound");
+        if(!stack.isEmpty()&&!(carrying&&potato))return false;
+        if(carrying){if(!pass(from,to))return false;}
+        else if(s.getTicks()<punchAfter.getOrDefault(to.getUuid(),0))return false;
+        punchAfter.put(to.getUuid(),s.getTicks()+10);
+        var delta=from.getPos().subtract(to.getPos());
+        if(!carrying){to.takeKnockback(.4,delta.x,delta.z);to.velocityModified=true;to.networkHandler.sendPacket(new net.minecraft.network.packet.s2c.play.EntityVelocityUpdateS2CPacket(to));}
+        // Vanilla's damage notification drives red flash, hurt sound and screen tilt on
+        // the actual controlled client too, without inventing a health-damage death rule.
+        to.animateDamage(0);to.tiltScreen(delta.x,delta.z);
+        to.getServerWorld().sendEntityDamage(to,from.getDamageSources().playerAttack(from));
+        return true;
+    }
     private static void eliminate(ServerPlayerEntity p,String reason){
         eliminate(p.getServer(),p.getUuid(),reason,false);
     }
     private static void eliminate(MinecraftServer s,UUID id,String reason,boolean fuseExpired){
         if(stage!=Stage.RUNNING||!alive.remove(id))return;
+        punchAfter.remove(id);
         boolean wasHolder=id.equals(holder);var p=s.getPlayerManager().getPlayer(id);
         if(wasHolder){holdAssist.clear();endAssist(s);}
         if(p!=null){clearSpeed(p);restoreGlow(p);
@@ -245,6 +271,7 @@ public final class HotPotato {
     }
     public static void leave(ServerPlayerEntity p){
         queue.remove(p.getUuid());players.remove(p.getUuid());
+        punchAfter.remove(p.getUuid());
         if(stage==Stage.RUNNING){expire(p.getServer());eliminate(p,"离开或断线");}
         clearSpeed(p);restoreGlow(p);recover(p);PrivateSidebar.clear(p);
     }
@@ -255,12 +282,12 @@ public final class HotPotato {
         resultText=winner==null?reason:"胜者："+(s.getPlayerManager().getPlayer(winner)==null?winner:s.getPlayerManager().getPlayer(winner).getName().getString());tell(s,resultText);
         holdAssist.clear();endAssist(s);
         for(UUID id:new ArrayList<>(players)){var p=s.getPlayerManager().getPlayer(id);if(p!=null){clearSpeed(p);restoreGlow(p);if(hasRecovery(p)){p.getInventory().clear();if(p.isAlive())p.changeGameMode(GameMode.SPECTATOR);}}}
-        holder=null;passAfter=0;deadline=s.getTicks()+config.resultSeconds*20;queue.clear();LobbyItems.refresh(s);
+        holder=null;passAfter=0;punchAfter.clear();deadline=s.getTicks()+config.resultSeconds*20;queue.clear();LobbyItems.refresh(s);
     }
     private static void returnToLobby(MinecraftServer s){
         holdAssist.clear();endAssist(s);var finished=new ArrayList<>(players);players.clear();queue.clear();alive.clear();holder=null;passAfter=0;deadline=0;round=0;stage=Stage.WAITING;
         for(UUID id:finished){var p=s.getPlayerManager().getPlayer(id);if(p!=null&&member(p)){recover(p);PrivateSidebar.clear(p);if(p.isAlive())com.megawalls.menu.HubMenu.travel(p,GameSessions.HUB);}}
-        roundGlowBefore.clear();assistGlowBefore.clear();assistApplied=false;
+        roundGlowBefore.clear();assistGlowBefore.clear();punchAfter.clear();assistApplied=false;
     }
     public static void tick(MinecraftServer s){
         if(stage==Stage.RESULT&&s.getTicks()>=deadline){returnToLobby(s);return;}

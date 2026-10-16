@@ -60,10 +60,19 @@ public final class Isolation {
         AttackEntityCallback.EVENT.register((p,w,hand,e,hit)->{
             if(!(p instanceof ServerPlayerEntity sp))return ActionResult.PASS;
             if(HotPotato.member(sp)||e instanceof ServerPlayerEntity target&&HotPotato.member(target)){
-                if(hand==net.minecraft.util.Hand.MAIN_HAND&&e instanceof ServerPlayerEntity target)HotPotato.pass(sp,target);
+                if(hand==net.minecraft.util.Hand.MAIN_HAND&&e instanceof ServerPlayerEntity target)HotPotato.attack(sp,target);
                 return ActionResult.FAIL;
             }
             return Spleef.member(sp)||e instanceof ServerPlayerEntity target&&Spleef.member(target)?ActionResult.FAIL:ActionResult.PASS;
+        });
+        // Reading an existing lectern book does not edit the protected arena. Keep
+        // vanilla's block handler (including Scholar) instead of duplicating its UI.
+        UseBlockCallback.EVENT.register((p,w,hand,hit)->{
+            if(p.isSpectator()||p.isSneaking()||hand!=net.minecraft.util.Hand.MAIN_HAND)return ActionResult.PASS;
+            var state=w.getBlockState(hit.getBlockPos());
+            if(!state.isOf(net.minecraft.block.Blocks.LECTERN)||!state.get(net.minecraft.block.LecternBlock.HAS_BOOK))return ActionResult.PASS;
+            if(w.isClient())return ActionResult.SUCCESS;
+            return state.onUse(w,p,hit);
         });
         ServerPlayConnectionEvents.JOIN.register((handler,sender,s)->GameSessions.joined(handler.player));
         net.fabricmc.fabric.api.entity.event.v1.ServerPlayerEvents.COPY_FROM.register((old,p,alive)->GameSessions.mark(p,GameSessions.game(old)));
@@ -104,7 +113,7 @@ public final class Isolation {
         PlayerBlockBreakEvents.BEFORE.register((w,p,pos,state,be)->!(p instanceof ServerPlayerEntity sp)||editor(sp,ClassicDuel.ID)||!(ClassicDuel.member(sp)||DuelArena.contains(sp.getServerWorld(),pos)||DuelArena.shell(sp.getServerWorld(),pos))||ClassicDuel.fighter(sp)&&DuelArena.editable(sp.getServerWorld(),pos));
         UseBlockCallback.EVENT.register((p,w,hand,hit)->{
             if(p.getStackInHand(hand).isOf(net.minecraft.item.Items.NETHER_STAR))return ActionResult.PASS;
-            if(p instanceof ServerPlayerEntity sp&&(ClassicDuel.member(sp)&&!editor(sp,ClassicDuel.ID)||DuelArena.contains(sp.getServerWorld(),hit.getBlockPos())||DuelArena.contains(sp.getServerWorld(),hit.getBlockPos().offset(hit.getSide())))){
+            if(p instanceof ServerPlayerEntity sp&&!editor(sp,ClassicDuel.ID)&&(ClassicDuel.member(sp)||DuelArena.contains(sp.getServerWorld(),hit.getBlockPos())||DuelArena.contains(sp.getServerWorld(),hit.getBlockPos().offset(hit.getSide())))){
                 if(!ClassicDuel.fighter(sp))return ActionResult.FAIL;
                 var stack=p.getStackInHand(hand);
                 if(stack.getItem() instanceof net.minecraft.item.BlockItem block){

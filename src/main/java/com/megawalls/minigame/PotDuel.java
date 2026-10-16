@@ -191,12 +191,12 @@ public final class PotDuel {
         p.getInventory().setStack(2,new ItemStack(Items.COOKED_BEEF,64));
         
         if(relay){
-            p.getInventory().setStack(3,net.minecraft.component.type.PotionContentsComponent.createStack(Items.POTION,net.minecraft.potion.Potions.STRONG_SWIFTNESS));
+            p.getInventory().setStack(3,LegacyDuelItems.potSpeed());
             for(int slot=9;slot<=17;slot++)p.getInventory().setStack(slot,net.minecraft.component.type.PotionContentsComponent.createStack(Items.SPLASH_POTION,net.minecraft.potion.Potions.STRONG_HEALING));
         }else{
             int speed=config.speeds,heal=config.heals;
             for(int slot=3;slot<36;slot++){if(slot==8)continue;
-                if(speed>0){p.getInventory().setStack(slot,net.minecraft.component.type.PotionContentsComponent.createStack(Items.POTION,net.minecraft.potion.Potions.STRONG_SWIFTNESS));speed--;}
+                if(speed>0){p.getInventory().setStack(slot,LegacyDuelItems.potSpeed());speed--;}
                 else if(heal-->0)p.getInventory().setStack(slot,net.minecraft.component.type.PotionContentsComponent.createStack(Items.SPLASH_POTION,net.minecraft.potion.Potions.STRONG_HEALING));
             }
         }

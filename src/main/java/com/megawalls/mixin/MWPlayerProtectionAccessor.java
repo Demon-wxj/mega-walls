@@ -7,4 +7,5 @@ import org.spongepowered.asm.mixin.gen.Accessor;
 @Mixin(ServerPlayerEntity.class)
 public interface MWPlayerProtectionAccessor {
     @Accessor("joinInvulnerabilityTicks") int mw$getJoinInvulnerabilityTicks();
+    @Accessor("joinInvulnerabilityTicks") void mw$setJoinInvulnerabilityTicks(int ticks);
 }

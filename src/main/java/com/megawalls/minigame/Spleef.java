@@ -40,6 +40,7 @@ import net.minecraft.server.world.ServerWorld;
 import net.minecraft.text.Text;
 import net.minecraft.stat.Stats;
 import net.minecraft.util.Hand;
+import net.minecraft.util.ActionResult;
 import net.minecraft.util.TypedActionResult;
 import net.minecraft.util.Identifier;
 import net.minecraft.util.WorldSavePath;
@@ -47,6 +48,7 @@ import net.minecraft.util.hit.BlockHitResult;
 import net.minecraft.util.hit.EntityHitResult;
 import net.minecraft.util.hit.HitResult;
 import net.minecraft.util.math.BlockPos;
+import net.minecraft.util.math.Direction;
 import net.minecraft.util.math.Box;
 import net.minecraft.util.math.MathHelper;
 import net.minecraft.util.math.Vec3d;
@@ -129,6 +131,14 @@ public final class Spleef {
         return "场地就绪";
     }
     public static void register(){
+        // Handle the initial hit, before vanilla Adventure mining/progress can reject it.
+        net.fabricmc.fabric.api.event.player.AttackBlockCallback.EVENT.register((p,w,hand,pos,side)->{
+            if(p instanceof ServerPlayerEntity player&&member(player)&&!Isolation.editor(player,ID)){
+                if(hand==Hand.MAIN_HAND)dig(player,pos);
+                return ActionResult.FAIL;
+            }
+            return ActionResult.PASS;
+        });
         ServerLifecycleEvents.SERVER_STARTED.register(s->{queue.clear();players.clear();alive.clear();snow.clear();ballSlots.clear();throwing.clear();stage=Stage.WAITING;restoring=null;resetFailed=false;authorized=false;round=0;load(s);if(Files.exists(snapshotFile(s))){stage=Stage.RESETTING;loadSnapshot(s);}});
         ServerTickEvents.END_SERVER_TICK.register(Spleef::tick);
         ServerLifecycleEvents.SERVER_STOPPING.register(s->{if(stage==Stage.RUNNING||stage==Stage.RESULT||stage==Stage.COUNTDOWN)cleanup(s,"服务器关闭，本局取消。");if(stage==Stage.RESETTING&&!resetFailed)restoreBatch(s,Integer.MAX_VALUE);});
@@ -282,7 +292,11 @@ public final class Spleef {
         if(!SpleefRules.projectile(n.getLong("mg_spleef_round"),round,true,true,true)||!ID.equals(n.getString("mg_item_game"))||!p.getUuidAsString().equals(n.getString("mg_spleef_owner")))return false;
         var w=p.getServerWorld();var state=w.getBlockState(pos);
         if(!w.getRegistryKey().getValue().toString().equals(snapshotDimension)||!inside(w,pos)||!snow.containsKey(pos)||!snow(state))return false;
-        var hit=w.raycast(new RaycastContext(p.getEyePos(),Vec3d.ofCenter(pos),RaycastContext.ShapeType.OUTLINE,RaycastContext.FluidHandling.NONE,p));
+        // A full block's center is below the platform surface; that artificial ray
+        // can cross neighbouring snow before reaching the legitimately clicked block.
+        var outline=state.getOutlineShape(w,pos);if(outline.isEmpty())return false;
+        var surface=new Vec3d(pos.getX()+.5,pos.getY()+outline.getMax(Direction.Axis.Y)-.0000001,pos.getZ()+.5);
+        var hit=w.raycast(new RaycastContext(p.getEyePos(),surface,RaycastContext.ShapeType.OUTLINE,RaycastContext.FluidHandling.NONE,p));
         if(hit.getType()==HitResult.Type.BLOCK&&!hit.getBlockPos().equals(pos))return false;
         if(!removeSnow(w,pos,state))return false;
         p.incrementStat(Stats.MINED.getOrCreateStat(state.getBlock()));tool.postMine(w,state,pos,p);return true;
@@ -290,7 +304,7 @@ public final class Spleef {
     /** Called by the server-side constructor; a stale projectile never inherits a later round. */
     public static long stamp(SnowballEntity e){if(e.getOwner() instanceof ServerPlayerEntity p&&e.getWorld() instanceof ServerWorld&&throwing.containsKey(p.getUuid())&&canThrow(p,Hand.MAIN_HAND)){e.addCommandTag("mg_source_"+ID);e.addCommandTag("mg_spleef_round_"+round);p.getItemCooldownManager().set(Items.SNOWBALL,config.shotDelayTicks);return round;}return 0;}
     /** Command tags persist with unloaded entities; the nonce never transfers into a new match. */
-    public static boolean currentShot(ProjectileEntity e){return round>0&&e instanceof SnowballEntity&&e.getWorld() instanceof ServerWorld&&e.getCommandTags().contains("mg_spleef_round_"+round)&&SpleefRules.projectileAge(e.age)&&e.getOwner() instanceof ServerPlayerEntity p&&validFighter(p)&&p.getServerWorld()==e.getWorld();}
+    public static boolean currentShot(ProjectileEntity e){return round>0&&e instanceof SnowballEntity&&e.isAlive()&&e.getWorld() instanceof ServerWorld&&e.getCommandTags().contains("mg_spleef_round_"+round)&&SpleefRules.projectileAge(e.age)&&e.getOwner() instanceof ServerPlayerEntity p&&validFighter(p)&&p.getServerWorld()==e.getWorld();}
     public static void hit(SnowballEntity e,long shotRound,HitResult hit){
         if(!(e.getWorld() instanceof ServerWorld w)||!(e.getOwner() instanceof ServerPlayerEntity p)||!currentShot(e)||shotRound!=round||p.getServer().getTicks()-started<config.graceTicks)return;
         if(hit instanceof EntityHitResult entityHit){

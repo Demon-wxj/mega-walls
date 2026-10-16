@@ -58,6 +58,7 @@ public final class FunMode {
         PayloadTypeRegistry.playC2S().register(FunPayload.ID, FunPayload.CODEC);
         PayloadTypeRegistry.playS2C().register(FunPayload.ID, FunPayload.CODEC);
         PayloadTypeRegistry.playS2C().register(FunLookPayload.ID, FunLookPayload.CODEC);
+        PayloadTypeRegistry.playS2C().register(FunSpinPayload.ID, FunSpinPayload.CODEC);
         ServerPlayNetworking.registerGlobalReceiver(FunPayload.ID, (packet, context) ->
             context.server().execute(() -> configure(context.player(), packet)));
         CommandRegistrationCallback.EVENT.register((dispatcher, registry, environment) ->
@@ -136,6 +137,8 @@ public final class FunMode {
         if (ServerPlayNetworking.canSend(p, FunPayload.ID))
             ServerPlayNetworking.send(p, new FunPayload(s == null ? 0 : s.flags, s == null ? 3 : s.reach, s == null ? 1 : s.speed, open));
     }
+    /** Rebind the panel to this server UUID after a review-role PLAY initialization. */
+    public static void sync(ServerPlayerEntity player) { send(player,false); }
     private static void tick(ServerPlayerEntity p) {
         var s = STATES.get(p.getUuid()); if (s == null) return;
         int phase = GameState.phase(p);

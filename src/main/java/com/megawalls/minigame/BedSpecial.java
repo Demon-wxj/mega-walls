@@ -14,6 +14,8 @@ import java.util.*;
 
 /** Bounded, round-scoped implementations of the six historical special-item types. */
 public final class BedSpecial {
+    public static final double SKULL_BLOCK_RADIUS=1.5,SKULL_DAMAGE_RADIUS=3;
+    public static final int SKULL_WITHER_TICKS=100;
     private record Temporary(ServerWorld w,BlockPos pos,BlockState state,BlockState original,int until){}
     private record Trap(ServerWorld w,BlockPos pos,BlockState original,String team){}
     private record Warp(ServerWorld w,Vec3d start,int until){}
@@ -49,21 +51,29 @@ public final class BedSpecial {
         // Compute exposure before removing cover. No vanilla blast can push other games' players.
         var impacts=new LinkedHashMap<ServerPlayerEntity,Double>();for(var p:w.getPlayers())if(BedWars.fighter(p)&&(p==owner||!BedWars.sameTeam(owner,p))){double distance=p.getPos().distanceTo(center)/8;if(distance<=1)impacts.put(p,(1-distance)*net.minecraft.world.explosion.Explosion.getExposure(center,p));}
         var origin=e.getBlockPos();for(int x=-4;x<=4;x++)for(int y=-4;y<=4;y++)for(int z=-4;z<=4;z++)if(x*x+y*y+z*z<=16){var q=origin.add(x,y,z);if(BedArena.added(w,q)&&!(w.getBlockState(q).getBlock() instanceof BedBlock))BedArena.set(w,q,Blocks.AIR.getDefaultState());}
-        for(var entry:impacts.entrySet()){var p=entry.getKey();double impact=entry.getValue();if(impact<=0)continue;if(p.damage(w.getDamageSources().explosion(e,owner),(float)((impact*impact+impact)*28+1))){var direction=p.getPos().subtract(center);p.takeKnockback(impact,-direction.x,-direction.z);p.velocityModified=true;}}
+        var source=new BedBlastDamage(w.getDamageSources().explosion(e,owner));
+        for(var entry:impacts.entrySet()){var p=entry.getKey();double impact=entry.getValue();if(impact<=0)continue;if(p.damage(source,(float)((impact*impact+impact)*28+1))){var direction=p.getPos().subtract(center);p.takeKnockback(impact,-direction.x,-direction.z);p.velocityModified=true;}}
         w.spawnParticles(net.minecraft.particle.ParticleTypes.EXPLOSION_EMITTER,e.getX(),e.getY(),e.getZ(),1,0,0,0,0);w.playSound(null,e.getBlockPos(),net.minecraft.sound.SoundEvents.ENTITY_GENERIC_EXPLODE.value(),net.minecraft.sound.SoundCategory.BLOCKS,4,1);
     }
     public static void explodeSkull(net.minecraft.entity.projectile.WitherSkullEntity e){
         if(!(e.getWorld() instanceof ServerWorld w)||!BedWars.projectileValid(e)||!(e.getOwner() instanceof ServerPlayerEntity owner))return;
         var center=e.getPos();var origin=e.getBlockPos();
+        // Capture cover before any blocks disappear, just as for TNT.
+        var impacts=new LinkedHashMap<ServerPlayerEntity,Double>();
+        for(var p:w.getPlayers())if(BedWars.fighter(p)&&(p==owner||!BedWars.sameTeam(owner,p))){
+            double distance=p.getPos().distanceTo(center);if(distance>SKULL_DAMAGE_RADIUS)continue;
+            impacts.put(p,(1-distance/SKULL_DAMAGE_RADIUS)*net.minecraft.world.explosion.Explosion.getExposure(center,p));
+        }
         // Only this round's player-built blocks are destructible. The arena's original map and beds stay intact.
-        for(int x=-3;x<=3;x++)for(int y=-3;y<=3;y++)for(int z=-3;z<=3;z++)if(x*x+y*y+z*z<=9){
+        for(int x=-2;x<=2;x++)for(int y=-2;y<=2;y++)for(int z=-2;z<=2;z++)if(x*x+y*y+z*z<=SKULL_BLOCK_RADIUS*SKULL_BLOCK_RADIUS){
             var q=origin.add(x,y,z);
             if(BedArena.added(w,q)&&!(w.getBlockState(q).getBlock() instanceof BedBlock))BedArena.set(w,q,Blocks.AIR.getDefaultState());
         }
-        for(var p:w.getPlayers())if(BedWars.fighter(p)&&(p==owner||!BedWars.sameTeam(owner,p))){
-            double distance=p.getPos().distanceTo(center);if(distance>4)continue;
-            double impact=(1-distance/4)*net.minecraft.world.explosion.Explosion.getExposure(center,p);
-            if(impact>0&&p.damage(w.getDamageSources().explosion(e,owner),(float)(impact*8+2))){
+        var source=new BedBlastDamage(w.getDamageSources().explosion(e,owner));
+        for(var entry:impacts.entrySet()){
+            var p=entry.getKey();double impact=entry.getValue();
+            if(impact>0&&p.damage(source,(float)(impact*8+2))){
+                if(p.isAlive())p.addStatusEffect(new StatusEffectInstance(StatusEffects.WITHER,SKULL_WITHER_TICKS,0),owner);
                 var direction=p.getPos().subtract(center);p.takeKnockback(impact,-direction.x,-direction.z);p.velocityModified=true;
             }
         }

@@ -105,6 +105,28 @@ public final class TntRun {
         int y=MathHelper.floor(body.minY-.01);
         return BlockPos.iterate(MathHelper.floor(body.minX+.0000001),y,MathHelper.floor(body.minZ+.0000001),MathHelper.floor(body.maxX-.0000001),y,MathHelper.floor(body.maxZ-.0000001));
     }
+    /** One actual contact surface, even when the player's body straddles four cells. */
+    private static BlockPos footstep(ServerWorld w,Box body){
+        double x=(body.minX+body.maxX)*.5,z=(body.minZ+body.maxZ)*.5;
+        var center=BlockPos.ofFloored(x,body.minY-.01,z);
+        BlockPos selected=null;double bestArea=-1,bestDistance=Double.POSITIVE_INFINITY;
+        var centerProbe=new Box(x-.0000001,body.minY-.01,z-.0000001,x+.0000001,body.minY+.0000001,z+.0000001);
+        for(var mutable:beneathFeet(body)){
+            var pos=mutable.toImmutable();var original=floor.get(pos);var state=w.getBlockState(pos);
+            if(original==null||!state.equals(original)||!supportsFeet(w,pos,state,body))continue;
+            double area=0;
+            for(var local:state.getCollisionShape(w,pos).getBoundingBoxes()){
+                var piece=local.offset(pos.getX(),pos.getY(),pos.getZ());
+                if(piece.maxY<=body.minY-.01||piece.minY>=body.minY+.0000001)continue;
+                if(pos.equals(center)&&piece.intersects(centerProbe))return pos;
+                area+=Math.max(0,Math.min(body.maxX,piece.maxX)-Math.max(body.minX,piece.minX))
+                    *Math.max(0,Math.min(body.maxZ,piece.maxZ)-Math.max(body.minZ,piece.minZ));
+            }
+            double distance=(pos.getX()+.5-x)*(pos.getX()+.5-x)+(pos.getZ()+.5-z)*(pos.getZ()+.5-z);
+            if(area>bestArea+.0000001||Math.abs(area-bestArea)<=.0000001&&distance<bestDistance){selected=pos;bestArea=area;bestDistance=distance;}
+        }
+        return selected;
+    }
     private static ArenaCheck checkArena(MinecraftServer s){
         if(!validConfig||!values(config))return blocked("配置无法读取");
         if(!pointValid(config.corner1)||!pointValid(config.corner2)||config.layers.isEmpty()||config.spawns.size()<2)return blocked("需设置 arena1、arena2、地板层和至少两个出生点");
@@ -248,14 +270,12 @@ public final class TntRun {
             for(UUID id:new ArrayList<>(alive)){var p=s.getPlayerManager().getPlayer(id);if(p==null){alive.remove(id);continue;}if(!member(p)||!p.isAlive()||!inside(p.getServerWorld(),p.getBlockPos())){eliminate(p,"掉出场地");continue;}
                 p.getHungerManager().setFoodLevel(20);p.getHungerManager().setSaturationLevel(5);
                 if(s.getTicks()-started<config.graceTicks||!p.isOnGround())continue;
-                // All supporting blocks beneath the feet, at most four; crouching at edges cannot stall a match.
-                var box=p.getBoundingBox();
-                for(var mutable:beneathFeet(box)){var pos=mutable.toImmutable();
-                    if(floor.containsKey(pos)&&supportsFeet(p.getServerWorld(),pos,p.getServerWorld().getBlockState(pos),box))pending.putIfAbsent(pos,s.getTicks()+config.delayTicks);
-                }
+                var pos=footstep(p.getServerWorld(),p.getBoundingBox());
+                // Repeated contact never restarts or shortens the first-touch deadline.
+                if(pos!=null)pending.putIfAbsent(pos,s.getTicks()+config.delayTicks);
             }
             resolve(s);if(stage!=Stage.RUNNING)return;
-            var w=world(s,snapshotDimension);var it=pending.entrySet().iterator();while(it.hasNext()){var e=it.next();if(s.getTicks()>=e.getValue()){w.setBlockState(e.getKey(),Blocks.AIR.getDefaultState(),Block.NOTIFY_LISTENERS|Block.FORCE_STATE);it.remove();}}
+            var w=world(s,snapshotDimension);var it=pending.entrySet().iterator();while(it.hasNext()){var e=it.next();if(s.getTicks()>=e.getValue()){if(w.getBlockState(e.getKey()).equals(floor.get(e.getKey())))w.setBlockState(e.getKey(),Blocks.AIR.getDefaultState(),Block.NOTIFY_LISTENERS|Block.FORCE_STATE);it.remove();}}
             for(UUID id:players){var p=s.getPlayerManager().getPlayer(id);if(p!=null&&!alive.contains(id)&&p.isAlive()&&!inside(p.getServerWorld(),p.getBlockPos()))teleport(p,config.spawns.getFirst());}
         }
         if(s.getTicks()%20!=0)return;var audience=new HashSet<>(queue);audience.addAll(players);

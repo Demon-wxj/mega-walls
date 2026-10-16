@@ -26,6 +26,7 @@ public final class GameSessions {
     public static void mark(ServerPlayerEntity p,String game) {
         for(String tag:new HashSet<>(p.getCommandTags()))if(tag.startsWith(PREFIX))p.removeCommandTag(tag);
         p.addCommandTag(PREFIX+game);if(game.equals(MW))p.addCommandTag("mg_mw");else p.removeCommandTag("mg_mw");
+        com.megawalls.minigame.GameDifficulty.update(p.getServer());
     }
     private static Path profile(ServerPlayerEntity p,String game){return p.getServer().getSavePath(WorldSavePath.ROOT).resolve("minigame-profiles").resolve(p.getUuidAsString()).resolve(game+".dat");}
     public static boolean checkpoint(ServerPlayerEntity p){return write(profile(p,game(p)),capture(p));}
@@ -46,6 +47,7 @@ public final class GameSessions {
         var tags=new NbtList();for(String tag:p.getCommandTags())if(tag.startsWith("mw_")||tag.equals("wither_dead"))tags.add(NbtString.of(tag));n.put("tags",tags);
         n.put("mwData",MWPlayerData.getServer(p).toNbt());
         n.putBoolean("glowing",p.isGlowingLocal());
+        n.putBoolean("invulnerable",p.isInvulnerable());
         n.putBoolean("allowFlying",p.getAbilities().allowFlying);n.putBoolean("flying",p.getAbilities().flying);n.putFloat("flySpeed",p.getAbilities().getFlySpeed());
         return n;
     }
@@ -59,7 +61,11 @@ public final class GameSessions {
         for(var entry:n.getList("pendingKit",NbtElement.COMPOUND_TYPE))restorePendingStack(p,entry);
         p.getEnderChestInventory().clear();p.getEnderChestInventory().readNbtList(n.getList("ender",NbtElement.COMPOUND_TYPE),p.getRegistryManager());
         selectSlot(p,n.getInt("slot"));
-        p.clearStatusEffects();p.changeGameMode(GameMode.byId(n.getInt("mode")));
+        p.clearStatusEffects();var mode=GameMode.byId(n.getInt("mode"));p.changeGameMode(mode);
+        // changeGameMode can be a no-op after a restored NBT profile. Reconcile
+        // survival editing permissions and the actual client mode in that case too.
+        mode.setAbilities(p.getAbilities());p.setInvulnerable(n.getBoolean("invulnerable"));
+        p.networkHandler.sendPacket(new net.minecraft.network.packet.s2c.play.GameStateChangeS2CPacket(net.minecraft.network.packet.s2c.play.GameStateChangeS2CPacket.GAME_MODE_CHANGED,mode.getId()));
         p.getAttributeInstance(EntityAttributes.GENERIC_MAX_HEALTH).setBaseValue(n.contains("max")?n.getDouble("max"):20);
         for(var value:n.getList("effects",NbtElement.COMPOUND_TYPE)){var effect=StatusEffectInstance.fromNbt((NbtCompound)value);if(effect!=null)p.addStatusEffect(effect);}
         p.setGlowing(n.getBoolean("glowing"));

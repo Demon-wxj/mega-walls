@@ -11,6 +11,14 @@ public final class HotPotatoRules {
         return alive == 2 ? Math.min(scheduled, finalSeconds) : scheduled;
     }
 
+    /** Existing per-round settings are caps; later rounds keep shortening after the last cap. */
+    public static int secondsForRound(int[] schedule,int round,int alive,int finalSeconds,int decrease,int minimum){
+        int rounds=Math.max(1,round),seconds=schedule[0],configured=Math.min(rounds,schedule.length);
+        for(int i=1;i<configured;i++)seconds=Math.max(minimum,Math.min(schedule[i],seconds-decrease));
+        if(rounds>schedule.length)seconds=(int)Math.max(minimum,seconds-(long)decrease*(rounds-schedule.length));
+        return alive==2?Math.min(seconds,finalSeconds):seconds;
+    }
+
     public static int remainingSeconds(int now, int deadline) {
         return Math.max(0, (deadline - now + 19) / 20);
     }
