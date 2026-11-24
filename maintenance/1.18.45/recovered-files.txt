@@ -1,0 +1,16 @@
+com/megawalls/client/ClientSkillCinematics.java
+com/megawalls/client/screen/MWMatchScreen.java
+com/megawalls/client/screen/MWSettingsScreen.java
+com/megawalls/equipment/EquipmentHandler.java
+com/megawalls/game/MapConfig.java
+com/megawalls/game/MatchFlow.java
+com/megawalls/menu/ClassCatalog.java
+com/megawalls/minigame/BedSpecial.java
+com/megawalls/minigame/BedWitherSkull.java
+com/megawalls/mixin/MWWerewolfPotionMixin.java
+com/megawalls/passive/LegacyBattle.java
+com/megawalls/skill/SkillManager.java
+com/megawalls/skill/skills/EndermanSkill.java
+com/megawalls/skill/skills/GolemSkill.java
+com/megawalls/skill/skills/HerobrineSkill.java
+com/megawalls/wither/WitherDefense.java

@@ -1,0 +1,1359 @@
+--- a/com/megawalls/client/ClientSkillCinematics.java
++++ b/com/megawalls/client/ClientSkillCinematics.java
+@@ -19,0 +20 @@
++import com.megawalls.maintenance.client.ClientEffectTuning;
+@@ -46,0 +48,4 @@
++    // Reuse the frame list. Unattached events themselves are immutable and reusable.
++    private static final ArrayList<Event> FRAME = new ArrayList<>(192);
++    private static final boolean[] FRAME_DETAIL = new boolean[192];
++    private static boolean detailed = true;
+@@ -70,0 +76 @@
++        FRAME.clear();
+@@ -77,0 +84 @@
++        if(!ClientEffectTuning.enabled())return;
+@@ -83,0 +91 @@
++        if(!ClientEffectTuning.enabled())return;
+@@ -97 +105 @@
+-            if (p == null) continue;
++            if (p == null || !ClientEffectTuning.allowPattern(client, p)) continue;
+@@ -110 +118 @@
+-        if (ACTIVE.size() >= 128) {
++        while (ACTIVE.size() >= ClientEffectTuning.maxEvents()) {
+@@ -140,0 +149 @@
++        if(!ClientEffectTuning.enabled())return;
+@@ -144 +153,2 @@
+-        ArrayList<Event> entries = new ArrayList<Event>();
++        ArrayList<Event> entries = FRAME;
++        entries.clear();
+@@ -149,2 +159,2 @@
+-            if (p == null) continue;
+-            entries.add(new Event(p, e2.born, e2.life, e2.seed));
++            if (p == null || !visible(context, p, camera)) continue;
++            entries.add(p == e2.packet ? e2 : new Event(p, e2.born, e2.life, e2.seed));
+@@ -153 +163 @@
+-            if (entity.isRemoved()) continue;
++            if (entity.isRemoved() || !ClientEffectTuning.allowPosition(entity.getPos())) continue;
+@@ -156,0 +167 @@
++            if (!visible(context, packet, camera)) continue;
+@@ -159,2 +170,14 @@
+-        entries.sort(Comparator.comparingDouble(e -> e.packet.origin().squaredDistanceTo(camera)).reversed());
+-        for (Event e2 : entries) {
++        entries.sort(Comparator.comparingDouble((Event e) -> e.packet.origin().squaredDistanceTo(camera)).reversed());
++        // All live projectiles keep a cheap visible marker. Only rich models share
++        // the finite budget; dropping an incoming projectile's cue would hide danger.
++        ClientEffectTuning.visibleEffects(entries.size());
++        int units = ClientEffectTuning.detailUnits();
++        int slots = ClientEffectTuning.maxEvents(), detailCount = 0;
++        for (int i = entries.size() - 1; i >= 0; i--) {
++            int cost = switch (entries.get(i).packet.shape()) {case 7, 21 -> 3; case 17, 22, 24 -> 2; default -> 1;};
++            FRAME_DETAIL[i] = slots > 0 && units >= cost;
++            if (FRAME_DETAIL[i]) {units -= cost;slots--;detailCount++;}
++        }
++        ClientEffectTuning.detailedEffects(detailCount);
++        for (int index = 0; index < entries.size(); index++) {
++            Event e2 = entries.get(index);
+@@ -164,0 +188 @@
++            detailed = FRAME_DETAIL[index];
+@@ -170,2 +194,10 @@
+-            }
+-        }
++                detailed = true;
++            }
++        }
++        entries.clear();
++    }
++
++    private static boolean visible(WorldRenderContext context, S2C_SkillPattern p, Vec3d camera) {
++        double range = ClientEffectTuning.range();
++        return Math.min(p.origin().squaredDistanceTo(camera), p.end().squaredDistanceTo(camera)) <= range * range
++            && (context.frustum() == null || context.frustum().isVisible(new Box(p.origin(), p.end()).expand(Math.max(3.0, p.radius() + 2.0))));
+@@ -205,0 +238,5 @@
++        if (!detailed) {
++            simple(context, p, age, fade, r, g, b);
++            matrices.pop();
++            return;
++        }
+@@ -333,0 +371,27 @@
++    /** Under load preserve the position, class color, impact radius and travelling orb. */
++    private static void simple(WorldRenderContext context, S2C_SkillPattern p, float age, float fade, float r, float g, float b) {
++        MatrixStack m = context.matrixStack();
++        if (p.shape() == 7 || p.shape() == 18) {
++            m.multiply(context.camera().getRotation());
++            VertexConsumer orb = context.consumers().getBuffer(RenderLayer.getEyes(GLOW));
++            sprite(orb, m.peek(), 0, 0, 0.36f, 0.36f, r, g, b);
++            return;
++        }
++        VertexConsumer v = context.consumers().getBuffer(RenderLayer.getEyes(FILAMENT));
++        float radius = (float)Math.min(5.0, Math.max(0.5, p.radius()));
++        radius *= Math.min(1.0f, 0.35f + age * 0.15f);
++        for (int i = 0; i < 12; i++) {
++            double a = i * Math.PI / 6, z = (i + 1) * Math.PI / 6;
++            float x0 = (float)Math.cos(a) * radius, z0 = (float)Math.sin(a) * radius;
++            float x1 = (float)Math.cos(z) * radius, z1 = (float)Math.sin(z) * radius;
++            vertex(v,m.peek(),x0,0.04f,z0,0,0,r,g,b);
++            vertex(v,m.peek(),x1,0.04f,z1,1,0,r,g,b);
++            vertex(v,m.peek(),x1*0.96f,0.04f,z1*0.96f,1,1,r,g,b);
++            vertex(v,m.peek(),x0*0.96f,0.04f,z0*0.96f,0,1,r,g,b);
++        }
++        m.multiply(context.camera().getRotation());
++        if (p.shape() == 6) streak(v,m.peek(),0,0.15f,-0.15f,1.6f,0.07f,r,g,b);
++        else if (p.shape() == 24 || p.shape() == 25) claws(v,m.peek(),age,r,g,b);
++        else sprite(context.consumers().getBuffer(RenderLayer.getEyes(GLOW)),m.peek(),0,0.7f,0.24f,0.35f,r*0.6f,g*0.6f,b*0.6f);
++    }
++
+--- a/com/megawalls/client/screen/MWMatchScreen.java
++++ b/com/megawalls/client/screen/MWMatchScreen.java
+@@ -10 +9,0 @@
+-import java.lang.invoke.LambdaMetafactory;
+@@ -48 +47 @@
+-        super(Text.literal(mapPage ? "\u6218\u573a\u5e03\u7f6e" : "\u5bf9\u5c40\u6307\u6325"));
++        super(Text.literal(mapPage ? "战场布置" : "对局指挥"));
+@@ -106,2 +105,3 @@
+-                EpicButton pointButton = this.button(MapConfig.LABELS[i], x + j % 2 * (col + 8), this.top + 46 + j / 2 * 29, col, 26, -4947214, () -> this.send("mw map " + MapConfig.POINTS[i]));
+-                pointButton.setTooltip(Tooltip.of(Text.literal(MapConfig.POINTS[i].contains("castle") ? "\u4fdd\u62a4\u539f\u5efa\u7b51\uff1b\u53ef\u653e\u7f6e\u5e76\u62c6\u9664\u672c\u5c40\u65b9\u5757\u3002\u7ad9\u5728\u4e24\u4e2a\u5bf9\u89d2\u70b9\u8bbe\u7f6e\u3002" : (MapConfig.POINTS[i].contains("witherzone") ? "\u51cb\u96f6\u533a\u4e0d\u53ef\u653e\u7f6e\u6216\u7834\u574f\u3002\u7ad9\u5728\u4e24\u4e2a\u5bf9\u89d2\u70b9\u8bbe\u7f6e\u3002" : "\u7ad9\u5728\u76ee\u6807\u4f4d\u7f6e\u70b9\u51fb\uff0c\u8bb0\u5f55\u5f53\u524d\u4f4d\u7f6e\u3002"))));
++                final int index = i;
++                EpicButton pointButton = this.button(MapConfig.LABELS[i], x + j % 2 * (col + 8), this.top + 46 + j / 2 * 29, col, 26, -4947214, () -> this.send("mw map " + MapConfig.POINTS[index]));
++                pointButton.setTooltip(Tooltip.of(Text.literal(MapConfig.POINTS[i].contains("castle") ? "保护原建筑；可放置并拆除本局方块。站在两个对角点设置。" : (MapConfig.POINTS[i].contains("witherzone") ? "凋零区不可放置或破坏。站在两个对角点设置。" : "站在目标位置点击，记录当前位置。"))));
+@@ -110 +110 @@
+-            this.button((String)"\u4e0a\u4e00\u9875", (int)x, (int)(bottom - 61), (int)third, (int)24, (int)-6645074, (Runnable)(Runnable)LambdaMetafactory.metafactory(null, null, null, ()V, lambda$init$3(), ()V)((MWMatchScreen)this)).active = this.page > 0;
++            this.button("上一页", x, bottom - 61, third, 24, -6645074, () -> { --this.page; this.clearAndInit(); }).active = this.page > 0;
+@@ -112 +112 @@
+-            this.button((String)"\u4e0b\u4e00\u9875", (int)(x + 2 * (third + 8)), (int)(bottom - 61), (int)third, (int)24, (int)-6645074, (Runnable)(Runnable)LambdaMetafactory.metafactory(null, null, null, ()V, lambda$init$5(), ()V)((MWMatchScreen)this)).active = this.page + 1 < this.pages();
++            this.button("下一页", x + 2 * (third + 8), bottom - 61, third, 24, -6645074, () -> { ++this.page; this.clearAndInit(); }).active = this.page + 1 < this.pages();
+@@ -115,6 +115,8 @@
+-            this.map = this.button("\u5e03\u7f6e\u6218\u573a", x + col + 8, this.top + 54, col, 28, -3232399, () -> this.client.setScreen(new MWMatchScreen(this, true)));
+-            this.start = this.button("\u5f00\u59cb\u5bf9\u5c40", x, this.top + 90, inner, 32, -3232399, () -> this.send("mw start"));
+-            this.stop = this.button("\u7ed3\u675f\u672c\u5c40", x, this.top + 130, col, 28, -4947214, () -> this.confirm("\u7ed3\u675f\u5f53\u524d\u5bf9\u5c40\uff1f", "\u672c\u5c40\u5c06\u7ed3\u675f\u5e76\u8fdb\u5165\u7ed3\u7b97\u3002", "mw stop"));
+-            this.reset = this.button("\u91cd\u7f6e \u00b7 \u6062\u590d\u5730\u56fe", x + col + 8, this.top + 130, col, 28, -6645074, () -> this.confirm("\u91cd\u7f6e\u5bf9\u5c40\uff1f", "\u7ed3\u675f\u672c\u5c40\u3001\u6062\u590d\u5efa\u7b51\u5e76\u8ba9\u73a9\u5bb6\u8fd4\u56de\u5927\u5385\u3002", "mw reset"));
+-        }
+-        this.button("\u8fd4\u56de", x, bottom - 31, inner, 24, -6645074, this::close);
++            this.map = this.button("布置战场", x + col + 8, this.top + 54, col, 28, -3232399, () -> this.client.setScreen(new MWMatchScreen(this, true)));
++            this.start = this.button("开始对局", x, this.top + 90, inner, 32, -3232399, () -> this.send("mw start"));
++            this.stop = this.button("结束本局", x, this.top + 130, col, 28, -4947214, () -> this.confirm("结束当前对局？", "本局将结束并进入结算。", "mw stop"));
++            this.reset = this.button("重置 · 恢复地图", x + col + 8, this.top + 130, col, 28, -6645074, () -> this.confirm("重置对局？", "结束本局、恢复建筑并让玩家返回大厅。", "mw reset"));
++            this.button("对局参数 · 时间与凋零掉血", x, bottom - 61, inner, 24, -3232399,
++                    () -> this.client.setScreen(new com.megawalls.maintenance.client.MatchTuningScreen(this)));
++        }
++        this.button("返回", x, bottom - 31, inner, 24, -6645074, this::close);
+@@ -151 +153 @@
+-            this.mode.setMessage(Text.literal(n.getInt("teams") == 4 ? "\u56db\u961f \u00b7 \u5207\u6362\u53cc\u961f" : "\u53cc\u961f \u00b7 \u5207\u6362\u56db\u961f"));
++            this.mode.setMessage(Text.literal(n.getInt("teams") == 4 ? "四队 · 切换双队" : "双队 · 切换四队"));
+@@ -158 +160 @@
+-            this.walls.setMessage(Text.literal(n.getInt("wall_count") == 4 ? "\u56db\u9762\u5206\u9694\u5899" : "\u5355\u9762\u5206\u9694\u5899"));
++            this.walls.setMessage(Text.literal(n.getInt("wall_count") == 4 ? "四面分隔墙" : "单面分隔墙"));
+@@ -171,3 +173,3 @@
+-            b.setMessage(Text.literal(((mask & 1 << (i < 32 ? i : i - 32)) != 0 ? "\u2713 " : "\u25cb ") + MapConfig.LABELS[i]));
+-        }
+-        String string = !n.getBoolean("can_manage") ? "\u8bf7\u5148\u8fdb\u5165\u8d85\u7ea7\u6218\u5899" : (!waiting || n.getBoolean("map_locked") ? "\u8bf7\u5148\u7ed3\u675f\u5e76\u91cd\u7f6e\u4e0a\u4e00\u5c40" : (lockReason = this.pending > 0 ? "\u6b63\u5728\u53d1\u9001\u8bbe\u7f6e" : "\u70b9\u51fb\u5207\u6362\u8bbe\u7f6e"));
++            b.setMessage(Text.literal(((mask & 1 << (i < 32 ? i : i - 32)) != 0 ? "✓ " : "○ ") + MapConfig.LABELS[i]));
++        }
++        lockReason = !n.getBoolean("can_manage") ? "请先进入超级战墙" : (!waiting || n.getBoolean("map_locked") ? "请先结束并重置上一局" : this.pending > 0 ? "正在发送设置" : "点击切换设置");
+@@ -181 +183 @@
+-            this.start.setTooltip(Tooltip.of(Text.literal(n.getString("start_issue").isEmpty() ? "\u81f3\u5c11\u4e24\u961f\u53c2\u52a0\u5e76\u51c6\u5907\u540e\u5f00\u59cb\u5bf9\u5c40" : n.getString("start_issue"))));
++            this.start.setTooltip(Tooltip.of(Text.literal(n.getString("start_issue").isEmpty() ? "至少两队参加并准备后开始对局" : n.getString("start_issue"))));
+@@ -190,2 +192,2 @@
+-        String subtitle = this.mapPage ? "\u70b9\u4f4d " + (this.page + 1) + " / " + this.pages() + " \u00b7 \u7ad9\u5728\u76ee\u6807\u5904\u8bbe\u7f6e" : n.getString("stage") + "  /  \u5730\u56fe " + n.getInt("map_set") + " / " + n.getInt("map_total");
+-        EpicTheme.heading(context, this.textRenderer, this.mapPage ? "\u6218\u573a\u5e03\u7f6e" : "\u5bf9\u5c40\u6307\u6325", subtitle, this.left + 12, this.top + 11);
++        String subtitle = this.mapPage ? "点位 " + (this.page + 1) + " / " + this.pages() + " · 站在目标处设置" : n.getString("stage") + "  /  地图 " + n.getInt("map_set") + " / " + n.getInt("map_total");
++        EpicTheme.heading(context, this.textRenderer, this.mapPage ? "战场布置" : "对局指挥", subtitle, this.left + 12, this.top + 11);
+@@ -195 +197 @@
+-                issue = "\u8bf7\u5148\u8fdb\u5165\u8d85\u7ea7\u6218\u5899";
++                issue = "请先进入超级战墙";
+@@ -197 +199 @@
+-                issue = "\u5404\u961f\u5df2\u51c6\u5907 \u00b7 \u6218\u573a\u7b49\u5f85\u5f00\u542f";
++                issue = "各队已准备 · 战场等待开启";
+@@ -200 +202 @@
+-            int limit = Math.max(1, (this.panelHeight - 205) / 11 + 1);
++            int limit = Math.max(0, (this.panelHeight - 234) / 11);
+@@ -212,9 +213,0 @@
+-    private /* synthetic */ void lambda$init$5() {
+-        ++this.page;
+-        this.clearAndInit();
+-    }
+-
+-    private /* synthetic */ void lambda$init$3() {
+-        --this.page;
+-        this.clearAndInit();
+-    }
+--- a/com/megawalls/client/screen/MWSettingsScreen.java
++++ b/com/megawalls/client/screen/MWSettingsScreen.java
+@@ -27 +27 @@
+-        super(Text.literal("\u64cd\u4f5c\u8bbe\u7f6e"));
++        super(Text.literal("操作设置"));
+@@ -34 +34 @@
+-        this.panelHeight = Math.min(220, this.height - 16);
++        this.panelHeight = Math.min(280, this.height - 16);
+@@ -37,2 +37,7 @@
+-        this.addDrawableChild(new EpicButton(this.left + 12, this.top + this.panelHeight - 64, this.panelWidth - 24, 26, (Text)Text.literal("\u6253\u5f00\u6309\u952e\u7ed1\u5b9a\u8bbe\u7f6e"), b -> this.client.setScreen(new KeybindsScreen(this, this.client.options)), -3232399));
+-        this.addDrawableChild(new EpicButton(this.left + 12, this.top + this.panelHeight - 31, this.panelWidth - 24, 24, (Text)Text.literal("\u8fd4\u56de\u8d85\u7ea7\u6218\u5899"), b -> this.close(), -6645074));
++        String[] levels={"关闭","精简","均衡","完整"};int slot=(this.panelWidth-24)/4;
++        for(int i=0;i<4;i++){int mode=i;var pick=addDrawableChild(new EpicButton(left+12+i*slot,top+89,slot-2,23,Text.literal(levels[i]),b->{com.megawalls.maintenance.client.ClientEffectTuning.setMode(mode);clearAndInit();},0xffc392de));pick.active=!levels[i].equals(com.megawalls.maintenance.client.ClientEffectTuning.name());}
++        this.addDrawableChild(new EpicButton(this.left + 12, this.top + 118, this.panelWidth - 24, 24,
++            Text.literal("卡顿时自动简化：" + (com.megawalls.maintenance.client.ClientEffectTuning.adaptive() ? "开" : "关")),
++            b -> { com.megawalls.maintenance.client.ClientEffectTuning.toggleAdaptive(); this.clearAndInit(); }, 0xffc392de)).active=com.megawalls.maintenance.client.ClientEffectTuning.enabled();
++        this.addDrawableChild(new EpicButton(this.left + 12, this.top + this.panelHeight - 64, this.panelWidth - 24, 26, (Text)Text.literal("打开按键绑定设置"), b -> this.client.setScreen(new KeybindsScreen(this, this.client.options)), -3232399));
++        this.addDrawableChild(new EpicButton(this.left + 12, this.top + this.panelHeight - 31, this.panelWidth - 24, 24, (Text)Text.literal("返回超级战墙"), b -> this.close(), -6645074));
+@@ -45,5 +50,6 @@
+-        EpicTheme.heading(context, this.textRenderer, "\u64cd\u4f5c\u8bbe\u7f6e", "\u4fee\u6539\u540e\u81ea\u52a8\u4f7f\u7528\u65b0\u7684\u6309\u952e", this.left + 12, this.top + 11);
+-        context.drawTextWithShadow(this.textRenderer, "\u6253\u5f00\u83dc\u5355\uff1a" + KeyBindings.menuName(), this.left + 16, this.top + 51, -3232399);
+-        context.drawTextWithShadow(this.textRenderer, "\u91ca\u653e\u6280\u80fd\uff1a" + KeyBindings.skillName(), this.left + 16, this.top + 68, -3232399);
+-        List<OrderedText> lines = this.textRenderer.wrapLines(Text.literal("\u5728\u6309\u952e\u7ed1\u5b9a\u5217\u8868\u627e\u5230\u201c\u8d85\u7ea7\u6218\u5899\u201d\u3002\u7ea2\u8272\u8868\u793a\u4e0e\u5176\u4ed6\u64cd\u4f5c\u51b2\u7a81\uff0c\u8bf7\u6539\u7528\u7a7a\u95f2\u6309\u952e\u3002\u5251\u53f3\u952e\u3001\u5f13\u5de6\u952e\u4e5f\u53ef\u65bd\u6cd5\uff1b\u6309\u4f4f\u4e0d\u4f1a\u91cd\u590d\u91ca\u653e\u3002"), this.panelWidth - 32);
+-        int maxLines = Math.max(0, (this.panelHeight - 154) / 11);
++        EpicTheme.heading(context, this.textRenderer, "超级战墙 · 操作与特效", "仅影响你自己的画面", this.left + 12, this.top + 11);
++        context.drawItem(net.minecraft.item.Items.NETHER_STAR.getDefaultStack(),left+15,top+56);
++        context.drawTextWithShadow(this.textRenderer, "技能特效  /  "+com.megawalls.maintenance.client.ClientEffectTuning.name(),left+38,top+54,0xffe8c1f7);
++        context.drawTextWithShadow(this.textRenderer, "关闭后仍显示敌方弹体和预警",left+38,top+69,0xffad9db9);
++        List<OrderedText> lines = this.textRenderer.wrapLines(Text.literal("在按键绑定列表找到“超级战墙”。红色表示与其他操作冲突，请改用空闲按键。剑右键、弓左键也可施法；按住不会重复释放。"), this.panelWidth - 32);
++        int maxLines = Math.max(0, (this.panelHeight - 218) / 11);
+@@ -51 +57 @@
+-            context.drawTextWithShadow(this.textRenderer, lines.get(i), this.left + 16, this.top + 91 + i * 11, -6645074);
++            context.drawTextWithShadow(this.textRenderer, lines.get(i), this.left + 16, this.top + 152 + i * 11, -6645074);
+--- a/com/megawalls/equipment/EquipmentHandler.java
++++ b/com/megawalls/equipment/EquipmentHandler.java
+@@ -114,0 +115 @@
++        com.megawalls.maintenance.KitPotions.merge(player);
+@@ -124,0 +126 @@
++        com.megawalls.maintenance.KitPotions.normalize(stack);
+@@ -165 +167 @@
+-            player.sendMessage(Text.literal("\u80cc\u5305\u5df2\u6ee1\uff0c\u804c\u4e1a\u7269\u54c1\u5df2\u6682\u5b58\uff1b\u817e\u51fa\u7a7a\u4f4d\u540e\u4f1a\u81ea\u52a8\u653e\u56de\u3002"), true);
++            player.sendMessage(Text.literal("背包已满，职业物品已暂存；腾出空位后会自动放回。"), true);
+--- a/com/megawalls/game/MapConfig.java
++++ b/com/megawalls/game/MapConfig.java
+@@ -35 +35 @@
+-    public static final String[] LABELS = new String[]{"\u7ea2\u961f\u51fa\u751f\u70b9", "\u84dd\u961f\u51fa\u751f\u70b9", "\u7ea2\u961f\u51cb\u96f6", "\u84dd\u961f\u51cb\u96f6", "\u5899\u89d2\u70b9\u4e00", "\u5899\u89d2\u70b9\u4e8c", "\u6b7b\u6597\u4e2d\u5fc3", "\u5927\u5385\u8fd4\u56de\u70b9", "\u7d2b\u961f\u51fa\u751f\u70b9", "\u9ec4\u961f\u51fa\u751f\u70b9", "\u7d2b\u961f\u51cb\u96f6", "\u9ec4\u961f\u51cb\u96f6", "\u84dd\u5899\u89d2\u4e00", "\u84dd\u5899\u89d2\u4e8c", "\u7d2b\u5899\u89d2\u4e00", "\u7d2b\u5899\u89d2\u4e8c", "\u9ec4\u5899\u89d2\u4e00", "\u9ec4\u5899\u89d2\u4e8c", "\u7ea2\u4fdd\u62a4\u533a\u89d2\u4e00", "\u7ea2\u4fdd\u62a4\u533a\u89d2\u4e8c", "\u84dd\u4fdd\u62a4\u533a\u89d2\u4e00", "\u84dd\u4fdd\u62a4\u533a\u89d2\u4e8c", "\u7d2b\u4fdd\u62a4\u533a\u89d2\u4e00", "\u7d2b\u4fdd\u62a4\u533a\u89d2\u4e8c", "\u9ec4\u4fdd\u62a4\u533a\u89d2\u4e00", "\u9ec4\u4fdd\u62a4\u533a\u89d2\u4e8c", "\u6218\u573a\u8fb9\u754c\u89d2\u4e00", "\u6218\u573a\u8fb9\u754c\u89d2\u4e8c", "\u7ea2\u51cb\u96f6\u533a\u89d2\u4e00", "\u7ea2\u51cb\u96f6\u533a\u89d2\u4e8c", "\u84dd\u51cb\u96f6\u533a\u89d2\u4e00", "\u84dd\u51cb\u96f6\u533a\u89d2\u4e8c", "\u7d2b\u51cb\u96f6\u533a\u89d2\u4e00", "\u7d2b\u51cb\u96f6\u533a\u89d2\u4e8c", "\u9ec4\u51cb\u96f6\u533a\u89d2\u4e00", "\u9ec4\u51cb\u96f6\u533a\u89d2\u4e8c", "\u8bad\u7ec3\u573a\u5165\u53e3"};
++    public static final String[] LABELS = new String[]{"红队出生点", "蓝队出生点", "红队凋零", "蓝队凋零", "墙角点一", "墙角点二", "死斗中心", "大厅返回点", "紫队出生点", "黄队出生点", "紫队凋零", "黄队凋零", "蓝墙角一", "蓝墙角二", "紫墙角一", "紫墙角二", "黄墙角一", "黄墙角二", "红保护区角一", "红保护区角二", "蓝保护区角一", "蓝保护区角二", "紫保护区角一", "紫保护区角二", "黄保护区角一", "黄保护区角二", "战场边界角一", "战场边界角二", "红凋零区角一", "红凋零区角二", "蓝凋零区角一", "蓝凋零区角二", "紫凋零区角一", "紫凋零区角二", "黄凋零区角一", "黄凋零区角二", "训练场入口"};
+@@ -58,0 +59 @@
++        com.megawalls.maintenance.MatchTuning.init(server);
+@@ -70 +71 @@
+-        if (((levelName = server.getSaveProperties().getLevelName()).contains("SAO") || levelName.contains("\u5ca9\u8c37\u5821")) && server.getCommandFunctionManager().getFunction(Identifier.of("megawalls", "map/sao_load")).isPresent()) {
++        if (((levelName = server.getSaveProperties().getLevelName()).contains("SAO") || levelName.contains("岩谷堡")) && server.getCommandFunctionManager().getFunction(Identifier.of("megawalls", "map/sao_load")).isPresent()) {
+@@ -116 +117 @@
+-            p.sendMessage(Text.literal("\u00a7e\u8bf7\u5148\u7ed3\u675f\u5e76\u91cd\u7f6e\u5f53\u524d\u5bf9\u5c40\uff0c\u518d\u4fee\u6539\u5730\u56fe\u3002"), false);
++            p.sendMessage(Text.literal("§e请先结束并重置当前对局，再修改地图。"), false);
+@@ -120 +121 @@
+-            p.sendMessage(Text.literal("\u00a7e\u5730\u56fe\u70b9\u4f4d\u8bf7\u7edf\u4e00\u8bbe\u7f6e\u5728\u4e3b\u4e16\u754c\u3002"), false);
++            p.sendMessage(Text.literal("§e地图点位请统一设置在主世界。"), false);
+@@ -134 +135 @@
+-        p.sendMessage(Text.literal("\u00a7a\u5df2\u8bbe\u7f6e" + LABELS[index] + "\uff1a" + pos.toShortString()), false);
++        p.sendMessage(Text.literal("§a已设置" + LABELS[index] + "：" + pos.toShortString()), false);
+@@ -185 +186 @@
+-            return "\u5730\u56fe\u7f3a\u5c11\u70b9\u4f4d\uff1a" + LABELS[Arrays.asList(POINTS).indexOf(n)];
++            return "地图缺少点位：" + LABELS[Arrays.asList(POINTS).indexOf(n)];
+@@ -191 +192 @@
+-                return "\u5899\u533a\u57df\u8d85\u8fc7 262144 \u683c\uff0c\u5355\u9762\u5899\u6700\u591a 262144 \u683c\u3002";
++                return "墙区域超过 262144 格，单面墙最多 262144 格。";
+@@ -198 +199 @@
+-                return "\u5730\u56fe\u70b9\u4f4d\u672a\u52a0\u8f7d\u6216\u8d8a\u754c\uff1a" + name;
++                return "地图点位未加载或越界：" + name;
+@@ -203 +204 @@
+-            return "\u51fa\u751f\u70b9\u4e0e\u51cb\u96f6\u81f3\u5c11\u76f8\u9694 3 \u683c\uff1a" + team;
++            return "出生点与凋零至少相隔 3 格：" + team;
+@@ -213 +214 @@
+-                return "\u6062\u590d\u4f59\u91cf journal_margin \u5fc5\u987b\u4e3a 0\uff08\u9ed8\u8ba416\uff09\u523064\u683c\u3002";
++                return "恢复余量 journal_margin 必须为 0（默认16）到64格。";
+@@ -216 +217 @@
+-                return "\u6218\u573a\u8fb9\u754c\u8fc7\u5927\uff1a\u52a0\u4e0a\u6062\u590d\u4f59\u91cf\u540e\u5355\u8fb9\u4e0d\u80fd\u8d85\u8fc71024\u683c\u3002";
++                return "战场边界过大：加上恢复余量后单边不能超过1024格。";
+@@ -221 +222 @@
+-                return "\u6218\u573a\u8fb9\u754c\u672a\u5305\u542b\u70b9\u4f4d\uff1a" + name;
++                return "战场边界未包含点位：" + name;
+--- a/com/megawalls/game/MatchFlow.java
++++ b/com/megawalls/game/MatchFlow.java
+@@ -72 +72 @@
+-            MatchFlow.announce(p.getServer(), p.getName().getString() + " \u5df2\u9000\u51fa\u672c\u5c40\u3002");
++            MatchFlow.announce(p.getServer(), p.getName().getString() + " 已退出本局。");
+@@ -89 +89 @@
+-            p.sendMessage(Text.literal("\u8bf7\u5148\u9009\u62e9\u804c\u4e1a\u3002"), false);
++            p.sendMessage(Text.literal("请先选择职业。"), false);
+@@ -95,2 +95 @@
+-            String point;
+-            String string = MapConfig.get(p.getServer(), "training_set") == 1 ? "training" : (point = p.getScoreboardTeam() != null && MatchTeams.ALL.contains(p.getScoreboardTeam().getName()) ? p.getScoreboardTeam().getName() + "spawn" : "redspawn");
++            String point = MapConfig.get(p.getServer(), "training_set") == 1 ? "training" : (p.getScoreboardTeam() != null && MatchTeams.ALL.contains(p.getScoreboardTeam().getName()) ? p.getScoreboardTeam().getName() + "spawn" : "redspawn");
+@@ -98 +97 @@
+-                p.sendMessage(Text.literal("\u8bf7\u5148\u5728\u6218\u573a\u8bbe\u7f6e\u4e2d\u8bbe\u7f6e\u8bad\u7ec3\u573a\u5165\u53e3\u3002"), false);
++                p.sendMessage(Text.literal("请先在战场设置中设置训练场入口。"), false);
+@@ -132 +131 @@
+-            case 1 -> "\u51c6\u5907\u9636\u6bb5";
++            case 1 -> "准备阶段";
+@@ -135 +134 @@
+-                    yield "\u51cb\u96f6\u66b4\u6012";
++                    yield "凋零暴怒";
+@@ -137,5 +136,5 @@
+-                yield "\u666e\u901a\u653b\u9632";
+-            }
+-            case 3 -> "\u6700\u7ec8\u6b7b\u6597";
+-            case 4 -> "\u672c\u5c40\u7ed3\u675f";
+-            default -> "\u7b49\u5f85\u51c6\u5907";
++                yield "普通攻防";
++            }
++            case 3 -> "最终死斗";
++            case 4 -> "本局结束";
++            default -> "等待准备";
+@@ -162 +161 @@
+-        n.putString("team", p.getScoreboardTeam() == null ? "\u672a\u5206\u961f" : MatchTeams.label(p.getScoreboardTeam().getName()));
++        n.putString("team", p.getScoreboardTeam() == null ? "未分队" : MatchTeams.label(p.getScoreboardTeam().getName()));
+@@ -248 +247 @@
+-            p.sendMessage(Text.literal("\u00a7e\u8bf7\u5148\u4ece\u5c0f\u6e38\u620f\u5165\u53e3\u8fdb\u5165\u8d85\u7ea7\u6218\u5899\u3002"), true);
++            p.sendMessage(Text.literal("§e请先从小游戏入口进入超级战墙。"), true);
+@@ -252 +251 @@
+-            p.sendMessage(Text.literal("\u00a7e\u8bf7\u7b49\u5f85\u672c\u5c40\u7ed3\u675f\u5e76\u91cd\u7f6e\u540e\u9009\u62e9\u961f\u4f0d\u3002"), true);
++            p.sendMessage(Text.literal("§e请等待本局结束并重置后选择队伍。"), true);
+@@ -280 +279 @@
+-        p.sendMessage(Text.literal("\u5df2\u9009\u62e9" + MatchTeams.label(team)).formatted(MatchTeams.color(team)), false);
++        p.sendMessage(Text.literal("已选择" + MatchTeams.label(team)).formatted(MatchTeams.color(team)), false);
+@@ -287 +286 @@
+-            p.sendMessage(Text.literal("\u00a7e\u8bf7\u5728\u7b49\u5f85\u9636\u6bb5\u52a0\u5165\u8d85\u7ea7\u6218\u5899\u5e76\u9009\u62e9\u804c\u4e1a\uff1b\u5b58\u6d3b\u4e14\u9000\u51fa\u89c2\u6218\u540e\u624d\u80fd\u51c6\u5907\u3002"), true);
++            p.sendMessage(Text.literal("§e请在等待阶段加入超级战墙并选择职业；存活且退出观战后才能准备。"), true);
+@@ -300 +299 @@
+-        p.sendMessage(Text.literal(p.getCommandTags().contains("mw_ready") ? "\u00a7a\u5df2\u52a0\u5165\u8d85\u7ea7\u6218\u5899" : "\u00a77\u5df2\u9000\u51fa\u6e38\u620f"), false);
++        p.sendMessage(Text.literal(p.getCommandTags().contains("mw_ready") ? "§a已加入超级战墙" : "§7已退出游戏"), false);
+@@ -312 +311 @@
+-            return "\u9700\u8981\u542f\u7528\u914d\u5957 v8 \u6570\u636e\u5305\u3002";
++            return "需要启用配套 v8 数据包。";
+@@ -315 +314 @@
+-            return "\u5bf9\u5c40\u6b63\u5728\u8fdb\u884c\u3002";
++            return "对局正在进行。";
+@@ -318 +317 @@
+-            return "\u8bf7\u5148\u91cd\u7f6e\u4e0a\u4e00\u5c40\u3002";
++            return "请先重置上一局。";
+@@ -321 +320 @@
+-            return "\u5730\u56fe\u70b9\u4f4d\u5c1a\u672a\u8bbe\u7f6e\u5b8c\u6574\u3002";
++            return "地图点位尚未设置完整。";
+@@ -330 +329 @@
+-        return count >= 2 && teams.size() >= 2 ? "" : "\u81f3\u5c11\u4e24\u540d\u73a9\u5bb6\u9009\u62e9\u804c\u4e1a\u3001\u52a0\u5165\u4e0d\u540c\u961f\u4f0d\u5e76\u51c6\u5907\u3002";
++        return count >= 2 && teams.size() >= 2 ? "" : "至少两名玩家选择职业、加入不同队伍并准备。";
+@@ -337 +336 @@
+-            MatchFlow.announce(s, "\u00a7e" + issue);
++            MatchFlow.announce(s, "§e" + issue);
+@@ -341 +340 @@
+-            MatchFlow.announce(s, "\u00a7c\u5899\u4f53\u5907\u4efd\u5931\u8d25\uff0c\u672a\u5f00\u59cb\u5bf9\u5c40\u3002");
++            MatchFlow.announce(s, "§c墙体备份失败，未开始对局。");
+@@ -345 +344 @@
+-            MatchFlow.announce(s, "\u00a7c" + MatchTerrainJournal.lastError() + "\uff0c\u672a\u5f00\u59cb\u5bf9\u5c40\u3002\u8bf7\u5148\u91cd\u7f6e\u3002");
++            MatchFlow.announce(s, "§c" + MatchTerrainJournal.lastError() + "，未开始对局。请先重置。");
+@@ -367 +366 @@
+-            MatchFlow.score(s, "#global", "mw_wither_" + team, 1000);
++            MatchFlow.score(s, "#global", "mw_wither_" + team, com.megawalls.maintenance.MatchTuning.value(s,"core_hp"));
+@@ -401 +400 @@
+-        MatchFlow.announce(s, "\u00a7a\u5bf9\u5c40\u5f00\u59cb\uff01\u51c6\u5907 " + MapConfig.get(s, "prep") + " \u79d2\uff0c\u968f\u540e\u62c6\u5899\u3002");
++        MatchFlow.announce(s, "§a对局开始！准备 " + MapConfig.get(s, "prep") + " 秒，随后拆墙。");
+@@ -415 +414 @@
+-        core.setCustomName(Text.literal(MatchTeams.label(team) + "\u51cb\u96f6").formatted(MatchTeams.color(team)));
++        core.setCustomName(Text.literal(MatchTeams.label(team) + "凋零").formatted(MatchTeams.color(team)));
+@@ -471 +470 @@
+-                    p.sendMessage(Text.literal("\u00a7a\u4e0a\u4e00\u5c40\u5df2\u91cd\u7f6e\uff0c\u6bd4\u8d5b\u7269\u54c1\u5df2\u6e05\u7406\u3002"), false);
++                    p.sendMessage(Text.literal("§a上一局已重置，比赛物品已清理。"), false);
+@@ -488 +487 @@
+-            p.sendMessage(Text.literal("\u00a77\u672c\u5c40\u5df2\u5f00\u59cb\uff0c\u4f60\u6b63\u5728\u89c2\u6218\u3002"), false);
++            p.sendMessage(Text.literal("§7本局已开始，你正在观战。"), false);
+@@ -501 +500 @@
+-            p.sendMessage(Text.literal("\u00a7a\u5df2\u91cd\u8fde\uff0c\u7ee7\u7eed\u672c\u5c40\u3002"), false);
++            p.sendMessage(Text.literal("§a已重连，继续本局。"), false);
+@@ -512 +511 @@
+-            MatchFlow.announce(s, "\u00a7c\u5730\u56fe\u8bb0\u5f55\u5931\u8d25\uff0c\u5bf9\u5c40\u5df2\u505c\u6b62\u3002\u8bf7\u5148\u6392\u67e5\u5e76\u91cd\u7f6e\uff1a" + MatchTerrainJournal.lastError());
++            MatchFlow.announce(s, "§c地图记录失败，对局已停止。请先排查并重置：" + MatchTerrainJournal.lastError());
+@@ -524 +523 @@
+-                MatchFlow.announce(s, "\u00a76\u5899\u5df2\u5012\u584c\uff0c\u653b\u51fb\u654c\u65b9\u51cb\u96f6\uff01");
++                MatchFlow.announce(s, "§6墙已倒塌，攻击敌方凋零！");
+@@ -535 +534 @@
+-            MatchFlow.announce(s, "\u00a7e\u62c6\u5899\u5012\u8ba1\u65f6\uff1a" + left + " \u79d2");
++            MatchFlow.announce(s, "§e拆墙倒计时：" + left + " 秒");
+@@ -547 +546 @@
+-            MatchFlow.announce(s, "\u00a77" + e.owner() + " \u91cd\u8fde\u7b49\u5f85\u8d85\u65f6\uff0c\u9000\u51fa\u672c\u5c40\u3002");
++            MatchFlow.announce(s, "§7" + e.owner() + " 重连等待超时，退出本局。");
+@@ -566,2 +565,3 @@
+-                if (time % 60 == 0 && hp > 1) {
+-                    MatchFlow.score(s, "#global", obj, hp - 1);
++                if (time % com.megawalls.maintenance.MatchTuning.decayInterval(s) == 0 && hp > 0) {
++                    hp = com.megawalls.maintenance.MatchTuning.decay(s, hp);
++                    MatchFlow.score(s, "#global", obj, hp);
+@@ -572 +572 @@
+-                MatchFlow.announce(s, "\u00a7c" + MatchTeams.label(team) + "\u51cb\u96f6\u6b7b\u4ea1\uff0c\u8be5\u961f\u65e0\u6cd5\u590d\u6d3b\uff01");
++                MatchFlow.announce(s, "§c" + MatchTeams.label(team) + "凋零死亡，该队无法复活！");
+@@ -575 +575 @@
+-                MatchFlow.announce(s, "\u00a7e\u51cb\u96f6\u66b4\u6012\u7ed3\u675f\uff0c\u8fdb\u5165\u666e\u901a\u653b\u9632\u3002\u51cb\u96f6\u4ecd\u5b58\u6d3b\u3002");
++                MatchFlow.announce(s, "§e凋零暴怒结束，进入普通攻防。凋零仍存活。");
+@@ -582 +582 @@
+-                MapConfig.set(s, "deathmatch_budget", Math.max(20, (MapConfig.get(s, "battle") + MapConfig.get(s, "deathmatch")) * 20 - MapConfig.get(s, "combat_elapsed")));
++                MapConfig.set(s, "deathmatch_budget", com.megawalls.maintenance.MatchTuning.deathmatchBudget(s));
+@@ -584 +584 @@
+-                MatchFlow.announce(s, "\u00a74\u6240\u6709\u51cb\u96f6\u5df2\u6b7b\u4ea1\uff0c\u8fdb\u5165\u6b7b\u6597\uff01\u65e0\u6cd5\u590d\u6d3b\uff1b\u8bf7\u524d\u5f80\u5899\u5012\u540e\u7684\u4e2d\u592e\u533a\u57df\uff0c\u7559\u5728\u5916\u56f4\u5c06\u83b7\u5f97\u9965\u997f II\u3002");
++                MatchFlow.announce(s, "§4所有凋零已死亡，进入死斗！无法复活；请前往墙倒后的中央区域，留在外围将获得饥饿 II。");
+@@ -646 +646 @@
+-        MatchFlow.announce(s, (String)(winner >= 1 && winner <= 4 ? String.valueOf(MatchTeams.color(MatchTeams.ALL.get(winner - 1))) + MatchTeams.label(MatchTeams.ALL.get(winner - 1)) + "\u80dc\u5229\uff01" : "\u00a7e\u672c\u5c40\u5e73\u5c40\u3002"));
++        MatchFlow.announce(s, (String)(winner >= 1 && winner <= 4 ? String.valueOf(MatchTeams.color(MatchTeams.ALL.get(winner - 1))) + MatchTeams.label(MatchTeams.ALL.get(winner - 1)) + "胜利！" : "§e本局平局。"));
+@@ -653 +653 @@
+-            p.sendMessage(Text.literal("\u00a76\u7ed3\u7b97 \u00b7 \u51fb\u6740 " + GameState.score(p.getScoreboard(), p.getName().getString(), "mw_kills") + " / \u6700\u7ec8\u51fb\u6740 " + GameState.score(p.getScoreboard(), p.getName().getString(), "mw_final_kills") + " \u00b7 \u6309 M \u67e5\u770b\u672c\u5c40"), false);
++            p.sendMessage(Text.literal("§6结算 · 击杀 " + GameState.score(p.getScoreboard(), p.getName().getString(), "mw_kills") + " / 最终击杀 " + GameState.score(p.getScoreboard(), p.getName().getString(), "mw_final_kills") + " · 按 M 查看本局"), false);
+@@ -686 +686 @@
+-                MatchFlow.announce(s, "\u00a7c" + MatchTerrainJournal.lastError());
++                MatchFlow.announce(s, "§c" + MatchTerrainJournal.lastError());
+@@ -693 +693 @@
+-            MatchFlow.announce(s, "\u00a7e\u5899\u4f53\u8fd8\u539f\u5931\u8d25\uff1a\u8bf7\u52a0\u8f7d\u5899\u533a\u57df\u540e\u91cd\u8bd5\u3002");
++            MatchFlow.announce(s, "§e墙体还原失败：请加载墙区域后重试。");
+@@ -741 +741 @@
+-        MatchFlow.announce(s, journal ? "\u00a7a\u5df2\u56de\u5230\u5927\u5385\uff0c\u6062\u590d\u672c\u5c40\u8bb0\u5f55\u8303\u56f4\u5185\u7684\u5730\u5f62\u548c\u5bb9\u5668\u3002" : "\u00a7a\u5df2\u56de\u5230\u5927\u5385\u5e76\u8fd8\u539f\u5206\u9694\u5899\u3002\u65e7\u5c40\u6ca1\u6709\u5730\u5f62\u65e5\u5fd7\uff0c\u5176\u4ed6\u7834\u574f\u65e0\u6cd5\u8865\u6062\u590d\u3002");
++        MatchFlow.announce(s, journal ? "§a已回到大厅，恢复本局记录范围内的地形和容器。" : "§a已回到大厅并还原分隔墙。旧局没有地形日志，其他破坏无法补恢复。");
+--- a/com/megawalls/menu/ClassCatalog.java
++++ b/com/megawalls/menu/ClassCatalog.java
+@@ -9 +9 @@
+-    public static final Entry[] ALL = new Entry[]{new Entry("\u50f5\u5c38", "\u56e2\u961f\u6cbb\u7597", "\u6cbb\u6108\u4e4b\u73af", "\u81ea\u5df1\u6062\u590d 7 HP\u300110 \u683c\u5185\u961f\u53cb\u6062\u590d 6 HP\uff1b\u50f5\u5c38\u961f\u53cb\u6062\u590d 3 HP\u3002", "\u8fd1\u6218\u53d7\u51fb\u6982\u7387\u6297\u6027 I\uff1b\u88ab\u7bad\u547d\u4e2d\u6982\u7387\u83b7\u5f97\u901f\u5ea6 II \u548c\u8fd1\u6218\u589e\u4f24\uff0c\u51b7\u5374 18 \u79d2\u3002\u51c6\u5907\u9636\u6bb5\u6025\u8feb III\u3002", "", "\u5251", 5), new Entry("\u9ab7\u9ac5", "\u8fdc\u7a0b\u538b\u5236", "\u7206\u70b8\u7bad", "\u53d1\u5c04\u6709\u78b0\u649e\u5224\u5b9a\u7684\u7206\u70b8\u7bad\uff0c\u843d\u70b9 4 \u683c\u5185\u9020\u6210\u56fa\u5b9a 6 HP \u771f\u5b9e\u4f24\u5bb3\u3002", "\u7bad\u547d\u4e2d\u83b7\u5f97\u56de\u590d\u4e0e\u901f\u5ea6 II\uff087 \u79d2\uff09\uff0c\u7ed3\u675f\u540e\u518d\u51b7\u5374 4 \u79d2\uff1b\u6982\u7387\u8fd4\u7bad\u3002\u77ff\u7269\u4e0e\u539f\u6728\u53cc\u500d\u6389\u843d\u3002", "", "\u5f13", 1), new Entry("\u8718\u86db", "\u8df3\u8dc3\u7a81\u88ad", "\u8df3\u8dc3", "\u77ac\u95f4\u5411\u524d\u9ad8\u901f\u5f39\u5c04\u3001\u66f4\u9ad8\u8dc3\u8d77\uff0c\u83b7\u5f97\u5438\u6536 I\uff085 \u79d2\uff09\uff1b\u843d\u5730\u4ee4 5 \u683c\u5185\u654c\u4eba\u7f13\u6162 II\uff084 \u79d2\uff09\u3002\u8df3\u8dc3\u672c\u8eab\u4e0d\u56fa\u5b9a\u6263\u8840\u3002", "\u6454\u843d\u5b9e\u9645\u635f\u5931\u81f3\u5c11 4 HP \u65f6\u9707\u51fb\uff1a4 \u683c\u5185\u9020\u6210\u5176\u4e24\u500d\u771f\u5b9e\u4f24\u5bb3\uff0c\u6700\u9ad8 14 HP\uff1b\u6b7b\u4ea1\u53ec\u5524\u4e09\u53ea\u8718\u86db\u3002\u6ce5\u571f\u7b49\u91c7\u96c6\u94c1\u952d\u3002", "", "\u5251", 3), new Entry("\u9c7f\u9c7c", "\u62c9\u62fd\u7eed\u822a", "\u9c7f\u9c7c\u98de\u6e85", ClassBalanceRules.squidDescription(), "\u4efb\u4f55\u6709\u6548\u4f24\u5bb3\u540e\uff0c\u4f4e\u4e8e 21 HP \u89e6\u53d1\u590d\u751f\uff0c\u51b7\u5374 50 \u79d2\uff1b\u5305\u62ec\u6454\u843d\u3001\u706b\u7130\u3002\u559d\u836f\u4ee4 4 \u683c\u5185\u53ef\u53d7\u63a7\u5236\u7684\u654c\u4eba\u81f4\u76f2 2.4 \u79d2\u3002\u5b9d\u7bb1\u6982\u7387\u83b7\u5f97\u5438\u6536\u836f\u6c34\u3002", "\u8fd4\u80fd\u4e0a\u9650 30 \u4e0e\u4f4e\u8840\u89e6\u53d1\u8303\u56f4\u4e3a\u9879\u76ee\u89c4\u5219\u3002", "\u5251", 2), new Entry("\u672b\u5f71\u4eba", "\u5207\u5165\u8ffd\u51fb", "\u77ac\u79fb", "\u4f18\u5148\u9009\u62e9\u51c6\u5fc3\u547d\u4e2d\u7684 25 \u683c\u5185\u654c\u4eba\uff1b\u5426\u5219\u53ea\u9009\u62e9\u51c6\u5fc3\u504f\u79fb\u4e0d\u8d85\u8fc7 2 \u683c\u3001\u4e14\u5728 15 \u5ea6\u534a\u89d2\u5185\u6700\u9760\u8fd1\u51c6\u5fc3\u7684\u654c\u4eba\u3002\u76f4\u63a5\u5230\u8fbe\u76ee\u6807\u4f4d\u7f6e\u5e76\u590d\u5236\u5176\u89c6\u89d2\uff0c\u83b7\u5f97\u901f\u5ea6 III\uff085 \u79d2\uff09\uff1b\u8d85\u8fc7 10 \u683c\u4e14\u7a7f\u5899\u65f6\u81ea\u8eab\u865a\u5f31 II\uff083 \u79d2\uff09\uff1b\u65e0\u5b89\u5168\u76ee\u6807\u4e0d\u8017\u80fd\u3002", "\u6ee1\u80fd\u91cf\u89e6\u53d1\u56de\u590d I\uff0810 \u79d2\uff09\uff0c\u72ec\u7acb\u51b7\u5374 10 \u79d2\uff1b\u53ef\u590d\u6d3b\u65f6\u6b7b\u4ea1\u6709 39% \u6982\u7387\u4fdd\u5305\uff1b\u6454\u4f24\u51cf\u5c11 75%\u3002", "", "\u5251", 6), new Entry("\u6d77\u8bfa\u5e03", "\u8fd1\u6218\u7206\u53d1", "\u96f7\u795e\u4e4b\u6012", "\u81ea\u52a8\u96f7\u51fb\u5468\u56f4 5 \u683c\u5185\u6240\u6709\u654c\u4eba\uff0c\u65e0\u9700\u7784\u51c6\uff1b\u547d\u4e2d\u5904\u51fa\u73b0\u95ea\u7535\uff0c\u9020\u6210 4.5 HP \u771f\u5b9e\u4f24\u5bb3\u3002", "\u547d\u4e2d\u6982\u7387\u901f\u5ea6 II\uff1b\u51fb\u6740\u540e 6 \u79d2\u8fd1\u6218\u4f24\u5bb3\u589e\u52a0 85%\u3002\u6cbb\u7597\u836f\u6c34\u9644\u5e26\u77ed\u65f6 10% \u589e\u4f24\u3002", "", "\u5251", 1), new Entry("\u82e6\u529b\u6015", "\u8303\u56f4\u7206\u53d1", "\u5f15\u7206", "\u6fc0\u6d3b\u540e\u7b49\u5f85 4 \u79d2\uff0c\u5728\u81ea\u5df1\u5f53\u65f6\u7684\u4f4d\u7f6e\u5f15\u7206\uff0c5 \u683c\u5185\u9020\u6210 10 HP \u771f\u5b9e\u4f24\u5bb3\uff1b\u7834\u574f\u5468\u56f4\u65b9\u5757\uff0c\u4fdd\u7559\u811a\u4e0b\u5730\u9762\u3002", "\u4efb\u4f55\u6709\u6548\u4f24\u5bb3\u540e\uff0c\u4f4e\u4e8e 14 HP \u89e6\u53d1\u901f\u5ea6 II\u3001\u56de\u590d I\uff0c\u51b7\u5374 20 \u79d2\uff1b\u5305\u62ec\u6454\u843d\u3001\u706b\u7130\u3002\u6b7b\u4ea1\u53ec\u5524\u82e6\u529b\u6015\u3002\u7164\u77ff\u4ea7\u51fa TNT\u3002", "\u4f4e\u8840\u89e6\u53d1\u8303\u56f4\u4e3a\u9879\u76ee\u89c4\u5219\u3002", "\u5251", 1), new Entry("\u6050\u60e7\u9b54\u738b", "\u6301\u7eed\u8fdb\u653b", "\u5f71\u7206", "\u53d1\u5c04\u4e09\u679a\u6247\u5f62\u51cb\u96f6\u5934\u8f68\u8ff9\uff1b\u78b0\u649e\u65f6\u5728 3 \u683c\u5185\u9020\u6210 7 HP \u771f\u5b9e\u4f24\u5bb3\u3002\u540c\u4e00\u8f6e\u4e09\u679a\u5bf9\u540c\u4e00\u654c\u4eba\u53ea\u7ed3\u7b97\u4e00\u6b21\u3002", "\u8fd1\u6218\u6982\u7387\u6062\u590d 2 HP \u548c\u9965\u997f\uff0c\u51b7\u5374 3 \u79d2\uff1b\u51fb\u6740\u540e\u56de\u590d I\uff086 \u79d2\uff09\u53ca 75% \u8fd1\u6218\u589e\u4f24\uff085 \u79d2\uff09\uff1b\u94c1\u77ff\u76f4\u63a5\u7194\u70bc\u3002", "", "\u5251", 1), new Entry("\u94c1\u5080\u5121", "\u63a7\u5236\u9632\u5fa1", "\u94a2\u94c1\u4e4b\u51fb", "\u516d\u5757\u94c1\u5757\u73af\u7ed5\u4e0b\u7838\uff1b4.5 \u683c\u5185\u9020\u6210 5 HP \u771f\u5b9e\u4f24\u5bb3\uff0c\u5e76\u628a\u654c\u4eba\u62c9\u5411\u81ea\u5df1\u3002\u94c1\u5757\u4ec5\u4e3a\u8868\u73b0\u3002", "\u7bad\u547d\u4e2d\u83b7\u5f97\u6297\u6027\uff1b\u51fb\u6740\u83b7\u5f97\u5438\u6536\uff0c\u51b7\u5374 20 \u79d2\u3002\u4f10\u6728\u6982\u7387\u83b7\u5f97\u94c1\u5757\u3002", "", "\u5251", 2), new Entry("\u70c8\u7130\u4eba", "\u706b\u7130\u538b\u5236", "\u732e\u796d\u7206\u88c2", "\u4e09\u679a\u76f4\u51fb\u706b\u7403\uff0c\u6bcf\u4e2a\u654c\u4eba\u6bcf\u8f6e\u6700\u591a\u7ed3\u7b97\u4e00\u6b21 10 HP \u771f\u5b9e\u4f24\u5bb3\uff1b\u961f\u53cb\u53ef\u6321\u7403\u3002\u84c4\u529b 1.5 \u79d2\uff0c\u4e4b\u540e\u95f4\u9694 0.3 \u79d2\u53d1\u5c04\uff08\u672c\u670d\u5b9a\u5236\uff09\u3002", "\u8fd1\u6218/\u7bad\u547d\u4e2d\u6982\u7387\u70b9\u71c3\u5e76\u56de\u590d\uff0c\u51b7\u5374 1 \u79d2\uff1b\u51fb\u6740\u53ec\u5524\u4e24\u53ea\u70c8\u7130\u4eba\u3002\u6316\u77ff\u56de\u590d\u4e0d\u53ef\u6301\u7eed\u5237\u65b0\u3002", "", "\u5f13", 1), new Entry("\u730e\u4eba", "\u8ffd\u8e2a\u5c04\u51fb", "\u9e70\u773c", "\u9e70\u773c\u6301\u7eed 14 \u79d2\uff1b\u6ee1\u84c4\u529b\u7bad\u8f6c\u5411\u9644\u8fd1\u654c\u4eba\u3002\u4e0d\u4f1a\u8ffd\u8e2a\u961f\u53cb\u6216\u89c2\u6218\u8005\u3002", "\u6bcf 30 \u79d2\u83b7\u5f97\u968f\u673a\u589e\u76ca\uff1b\u53d7\u51fb 8% \u6982\u7387\u53ec\u5524\u52a8\u7269\u4f19\u4f34\uff0c\u51b7\u5374 2 \u79d2\u3002\u91d1\u82f9\u679c\u7ed9\u4e88\u56de\u590d III\uff0c\u5b9d\u7bb1\u6982\u7387\u83b7\u5f97\u91d1\u82f9\u679c\u3002", "", "\u5f13", 7), new Entry("\u9f39\u9f20", "\u5730\u5f62\u6316\u6398", "\u6316\u6316\u6316", "1 tick \u540e\u9ad8\u901f\u6316\u6398\uff0c\u6bcf tick \u524d\u8fdb 2 \u683c\uff0c\u6700\u591a 8 \u683c\uff0c\u6316\u5f00\u7ea6 3\u00d73 \u7684\u5bbd\u901a\u9053\uff0c\u5e76\u5bf9\u8def\u5f84\u654c\u4eba\u5404\u9020\u6210\u4e00\u6b21 8 HP \u771f\u5b9e\u4f24\u5bb3\u3002\u78b0\u5230\u57fa\u5ca9\u3001\u5bb9\u5668\u6216\u8fb9\u754c\u4f1a\u505c\u6b62\uff0c\u4e0d\u6316\u6398\u94bb\u77f3\u77ff\u3002", "\u94f2\u7c7b\u91c7\u96c6\u6982\u7387\u901f\u5ea6 II \u4e0e\u6025\u8feb II\uff1b\u51c6\u5907\u9636\u6bb5\u6982\u7387\u6389\u80fd\u91cf\u66f2\u5947\uff0c\u5403\u4e0b +4 \u80fd\u91cf\uff1b\u5b9d\u7bb1\u94c1\u952d\u589e\u52a0\u3002", "", "\u94f2", 1), new Entry("\u72fc\u4eba", "\u5438\u8840\u8fd1\u6218", "\u72fc\u4eba\u53d8\u8eab", "\u53d8\u8eab 8 \u79d2\uff0c\u83b7\u5f97\u901f\u5ea6 II\uff1b\u6709\u6548\u8fd1\u6218\u751f\u547d\u53ca\u5438\u6536\u4f24\u5bb3\u5438\u8840 30%\uff0c\u6bcf\u6b21\u8fd1\u6218\u5bf9 5 \u683c\u5185\u654c\u4eba\u8ffd\u52a0 1 HP \u771f\u5b9e\u4f24\u5bb3\u3002", "\u8fde\u7eed\u4e09\u6b21\u8fd1\u6218\u6216\u7bad\u547d\u4e2d\u89e6\u53d1\u901f\u5ea6\u4e0e\u6297\u6027\uff0c\u53d7\u4f24\u91cd\u7f6e\uff1b\u5403\u725b\u6392\u83b7\u5f97\u56de\u590d I\uff085 \u79d2\uff09\uff0c\u51b7\u5374 6 \u79d2\uff1b\u51fb\u6740\u83b7\u5f97\u725b\u6392\u3002", "\u5899\u5012\u524d\u540e 30 \u79d2\u5185\u559d\u5b8c\u804c\u4e1a\u590d\u5408\u836f\uff0c\u53ea\u83b7\u5f97\u901f\u5ea6\uff0c\u4e0d\u65b0\u589e\u8df3\u8dc3 V\uff1b\u5df2\u6709\u8df3\u8dc3\u4e0d\u6e05\u9664\u3002", "\u5251", 3)};
++    public static final Entry[] ALL = new Entry[]{new Entry("僵尸", "团队治疗", "治愈之环", "自己恢复 7 HP、10 格内队友恢复 6 HP；僵尸队友恢复 3 HP。", "近战受击概率抗性 I；被箭命中概率获得速度 II 和近战增伤，冷却 18 秒。准备阶段急迫 III。", "", "剑", 5), new Entry("骷髅", "远程压制", "爆炸箭", "发射有碰撞判定的爆炸箭，落点 4 格内造成固定 6 HP 真实伤害。", "箭命中获得回复与速度 II（7 秒），结束后再冷却 4 秒；概率返箭。矿物与原木双倍掉落。", "", "弓", 1), new Entry("蜘蛛", "跳跃突袭", "跳跃", "瞬间向前高速弹射、更高跃起，获得吸收 I（5 秒）；落地令 5 格内敌人缓慢 II（4 秒）。跳跃本身不固定扣血。", "摔落实际损失至少 4 HP 时震击：4 格内造成其两倍真实伤害，最高 14 HP；死亡召唤三只蜘蛛。泥土等采集铁锭。", "", "剑", 3), new Entry("鱿鱼", "拉拽续航", "鱿鱼飞溅", ClassBalanceRules.squidDescription(), "任何有效伤害后，低于 21 HP 触发复生，冷却 50 秒；包括摔落、火焰。喝药令 4 格内可受控制的敌人致盲 2.4 秒。宝箱概率获得吸收药水。", "返能上限 30 与低血触发范围为项目规则。", "剑", 2), new Entry("末影人", "切入追击", "瞬移", "优先选择准心命中的 25 格内敌人；否则选择面向 30 度半角内最靠近准心的敌人，支持跳跃或水中的目标。直接到达目标位置并复制其视角，获得速度 III（5 秒）；超过 10 格且穿墙时自身虚弱 II（3 秒）；无安全目标不耗能；附近空间受阻时尝试邻近安全落点。", "满能量触发回复 II（6 秒），独立冷却 10 秒；可复活时死亡有 39% 概率保包；摔伤减少 75%。", "", "剑", 6), new Entry("海诺布", "近战爆发", "雷神之怒", "自动雷击周围 5 格内所有敌人，无需瞄准；命中处出现闪电，造成 5 HP 真实伤害。", "命中概率速度 II；击杀后 6 秒近战伤害增加 85%。治疗药水附带短时 10% 增伤。", "", "剑", 1), new Entry("苦力怕", "范围爆发", "引爆", "激活后等待 4 秒，在自己当时的位置引爆，5 格内造成 10 HP 真实伤害；破坏周围方块，保留脚下地面。", "任何有效伤害后，低于 14 HP 触发速度 II、回复 I，冷却 20 秒；包括摔落、火焰。死亡召唤苦力怕。煤矿产出 TNT。", "低血触发范围为项目规则。", "剑", 1), new Entry("恐惧魔王", "持续进攻", "影爆", "发射三枚扇形凋零头轨迹；碰撞时在 3 格内造成 7 HP 真实伤害。同一轮三枚对同一敌人只结算一次。", "近战概率恢复 2 HP 和饥饿，冷却 3 秒；击杀后回复 I（6 秒）及 75% 近战增伤（5 秒）；铁矿直接熔炼。", "", "剑", 1), new Entry("铁傀儡", "控制防御", "钢铁之击", "六块铁块环绕下砸；4.5 格内造成 5 HP 真实伤害、失明 II（1 秒），并把敌人拉向自己。铁块仅为表现。", "箭命中获得抗性；击杀获得吸收，冷却 20 秒。伐木概率获得铁块。", "", "剑", 2), new Entry("烈焰人", "火焰压制", "献祭爆裂", "三枚直击火球，每个敌人每轮最多结算一次 10 HP 真实伤害；队友可挡球。蓄力 1.5 秒，之后间隔 0.3 秒发射（本服定制）。", "近战/箭命中概率点燃并回复，冷却 1 秒；击杀召唤两只烈焰人。挖矿回复不可持续刷新。", "", "弓", 1), new Entry("猎人", "追踪射击", "鹰眼", "鹰眼持续 14 秒；满蓄力箭转向附近敌人。不会追踪队友或观战者。", "每 30 秒获得随机增益；受击 8% 概率召唤动物伙伴，冷却 2 秒。金苹果给予回复 III，宝箱概率获得金苹果。", "", "弓", 7), new Entry("鼹鼠", "地形挖掘", "挖挖挖", "1 tick 后高速挖掘，每 tick 前进 2 格，最多 8 格，挖开约 3×3 的宽通道，并对路径敌人各造成一次 8 HP 真实伤害。碰到基岩、容器或边界会停止，不挖掘钻石矿。", "铲类采集概率速度 II 与急迫 II；准备阶段概率掉能量曲奇，吃下 +4 能量；宝箱铁锭增加。", "", "铲", 1), new Entry("狼人", "吸血近战", "狼人变身", "变身 8 秒，获得速度 II；有效近战生命及吸收伤害吸血 30%，每次近战对 5 格内敌人追加 1 HP 真实伤害。", "连续三次近战或箭命中触发速度与抗性，受伤重置；吃牛排获得回复 I（5 秒），冷却 6 秒；击杀获得牛排。", "墙倒前后 30 秒内喝完职业复合药，只获得速度，不新增跳跃 V；已有跳跃不清除。", "剑", 3)};
+--- a/com/megawalls/minigame/BedSpecial.java
++++ b/com/megawalls/minigame/BedSpecial.java
+@@ -1,3 +0,0 @@
+-/*
+- * Decompiled with CFR 0.152.
+- */
+@@ -6,11 +2,0 @@
+-import com.megawalls.minigame.ArenaBlocks;
+-import com.megawalls.minigame.BedArena;
+-import com.megawalls.minigame.BedBlastDamage;
+-import com.megawalls.minigame.BedShop;
+-import com.megawalls.minigame.BedWars;
+-import java.util.ArrayList;
+-import java.util.HashMap;
+-import java.util.LinkedHashMap;
+-import java.util.List;
+-import java.util.Map;
+-import java.util.UUID;
+@@ -19,0 +6,3 @@
++import net.minecraft.component.ComponentType;
++import net.minecraft.component.DataComponentTypes;
++import net.minecraft.component.type.LoreComponent;
+@@ -23 +12,2 @@
+-import net.minecraft.entity.effect.StatusEffect;
++import net.minecraft.entity.damage.DamageSource;
++import net.minecraft.entity.damage.DamageTypes;
+@@ -29 +18,0 @@
+-import net.minecraft.registry.entry.RegistryEntry;
+@@ -43 +31,0 @@
+-import net.minecraft.world.World;
+@@ -44,0 +33,2 @@
++
++import java.util.*;
+@@ -50,4 +40,14 @@
+-    private static final List<Temporary> temporary = new ArrayList<Temporary>();
+-    private static final List<Trap> traps = new ArrayList<Trap>();
+-    private static final Map<UUID, Warp> warps = new HashMap<UUID, Warp>();
+-    private static final Map<UUID, Integer> cooldowns = new HashMap<UUID, Integer>();
++    private static final String[] RESCUE_SHAPE = {".#.#.", "#####", ".###.", "#####", ".#.#."};
++    private static final int MAX_PLATFORMS = 60;
++    private static final Queue<Platform> platforms = new PriorityQueue<>(Comparator.comparingInt(Platform::until));
++    private static final List<Trap> traps = new ArrayList<>();
++    private static final Map<UUID, Warp> warps = new HashMap<>();
++    private static final Map<UUID, Integer> rescueCooldowns = new HashMap<>();
++    private static final Map<UUID, Integer> wallCooldowns = new HashMap<>();
++
++    private record Tile(BlockPos pos, BlockState original) {}
++    private record Platform(ServerWorld world, List<Tile> tiles, int until) {}
++    private record Trap(ServerWorld world, BlockPos pos, BlockState original, String team) {}
++    private record Warp(ServerWorld world, Vec3d start, int until) {}
++
++    private BedSpecial() {}
+@@ -56 +56 @@
+-        temporary.clear();
++        platforms.clear();
+@@ -59 +59,2 @@
+-        cooldowns.clear();
++        rescueCooldowns.clear();
++        wallCooldowns.clear();
+@@ -64,23 +65,26 @@
+-        cooldowns.remove(id);
+-    }
+-
+-    public static void damaged(ServerPlayerEntity p) {
+-        if (warps.remove(p.getUuid()) != null) {
+-            p.sendMessage(Text.literal("\u56de\u57ce\u88ab\u4f24\u5bb3\u6253\u65ad\u3002"), true);
+-        }
+-    }
+-
+-    public static boolean magnet(LivingEntity e) {
+-        ServerPlayerEntity p;
+-        return e instanceof ServerPlayerEntity && BedWars.fighter(p = (ServerPlayerEntity)e) && BedShop.special(p.getEquippedStack(EquipmentSlot.FEET)).equals("magnet") && p.getRandom().nextFloat() < 0.75f;
+-    }
+-
+-    private static boolean canPlace(ServerWorld w, BlockPos pos) {
+-        return BedArena.contains(w, pos) && ArenaBlocks.replaceableGround(w.getBlockState(pos));
+-    }
+-
+-    public static ActionResult use(ServerPlayerEntity p, Hand hand, BlockHitResult hit) {
+-        if (!BedWars.fighter(p) || hand != Hand.MAIN_HAND) {
+-            return ActionResult.PASS;
+-        }
+-        ItemStack stack = p.getStackInHand(hand);
++        rescueCooldowns.remove(id);
++        wallCooldowns.remove(id);
++    }
++
++    public static void damaged(ServerPlayerEntity player) {
++        if (warps.remove(player.getUuid()) != null) notice(player, "回城被伤害打断。");
++    }
++
++    private static boolean wearsMagnet(LivingEntity entity) {
++        return entity instanceof ServerPlayerEntity player && BedWars.fighter(player)
++                && BedShop.special(player.getEquippedStack(EquipmentSlot.FEET)).equals("magnet");
++    }
++
++    public static boolean magnet(LivingEntity entity) {
++        if (!wearsMagnet(entity)) return false;
++        int chance = ArenaRuleAccess.bed().magnetChance;
++        return chance == 100 || chance > 0 && entity.getRandom().nextInt(100) < chance;
++    }
++
++    /** Use damage after protection and armor, before absorption and health are consumed. */
++    public static float appliedDamage(LivingEntity entity, DamageSource source, float damage) {
++        if (damage <= 0 || source.isOf(DamageTypes.GENERIC_KILL) || !wearsMagnet(entity)) return damage;
++        return (float)Math.min(Float.MAX_VALUE, damage * (ArenaRuleAccess.bed().magnetDamage / 100.0));
++    }
++
++    public static ItemStack describe(ItemStack stack) {
+@@ -88,89 +92,177 @@
+-        if (special.isEmpty() || special.equals("magnet")) {
+-            return ActionResult.PASS;
+-        }
+-        ServerWorld w = p.getServerWorld();
+-        int now = p.getServer().getTicks();
+-        boolean used = false;
+-        switch (special) {
+-            case "tnt": {
+-                if (hit == null) {
+-                    return ActionResult.FAIL;
+-                }
+-                BlockPos pos = hit.getBlockPos().offset(hit.getSide());
+-                if (!BedSpecial.canPlace(w, pos)) {
+-                    return ActionResult.FAIL;
+-                }
+-                TntEntity e = new TntEntity(w, (double)pos.getX() + 0.5, pos.getY(), (double)pos.getZ() + 0.5, p);
+-                e.setFuse(80);
+-                BedWars.stamp(e);
+-                used = w.spawnEntity(e);
+-                break;
+-            }
+-            case "rescue": {
+-                if (now < cooldowns.getOrDefault(p.getUuid(), 0) || temporary.size() > 1000) {
+-                    return ActionResult.FAIL;
+-                }
+-                BlockPos center = p.getBlockPos().down();
+-                for (int x = -1; x <= 1; ++x) {
+-                    for (int z = -1; z <= 1; ++z) {
+-                        BlockPos q = center.add(x, 0, z);
+-                        BlockState st = Blocks.GLASS.getDefaultState();
+-                        BlockState original = w.getBlockState(q);
+-                        if (!BedSpecial.canPlace(w, q) || !BedArena.set(w, q, st)) continue;
+-                        temporary.add(new Temporary(w, q, st, original, now + 100));
+-                        used = true;
+-                    }
+-                }
+-                if (!used) break;
+-                cooldowns.put(p.getUuid(), now + 400);
+-                break;
+-            }
+-            case "wall": {
+-                Direction facing = p.getHorizontalFacing();
+-                Direction across = facing.rotateYClockwise();
+-                BlockPos center = p.getBlockPos().offset(facing, 2);
+-                for (int x = -2; x <= 2; ++x) {
+-                    for (int y = 0; y < 3; ++y) {
+-                        BlockPos q = center.offset(across, x).up(y);
+-                        if (!BedSpecial.canPlace(w, q) || !BedArena.set(w, q, Blocks.BRICKS.getDefaultState())) continue;
+-                        used = true;
+-                    }
+-                }
+-                break;
+-            }
+-            case "trap": {
+-                if (hit == null || traps.size() >= 64) {
+-                    return ActionResult.FAIL;
+-                }
+-                BlockPos q = hit.getBlockPos().offset(hit.getSide());
+-                BlockState original = w.getBlockState(q);
+-                if (!BedSpecial.canPlace(w, q) || !BedArena.set(w, q, Blocks.TRIPWIRE.getDefaultState())) break;
+-                traps.add(new Trap(w, q, original, BedWars.team(p)));
+-                used = true;
+-                break;
+-            }
+-            case "warp": {
+-                if (warps.containsKey(p.getUuid())) {
+-                    return ActionResult.FAIL;
+-                }
+-                warps.put(p.getUuid(), new Warp(w, p.getPos(), now + 120));
+-                p.sendMessage(Text.literal("\u56de\u57ce\u4e2d\uff1a\u4fdd\u6301\u4e0d\u52a8 6 \u79d2\uff0c\u53d7\u4f24\u4f1a\u6253\u65ad\u3002"), true);
+-                used = true;
+-            }
+-        }
+-        if (used) {
+-            stack.decrement(1);
+-            return ActionResult.SUCCESS;
+-        }
+-        return ActionResult.FAIL;
+-    }
+-
+-    public static void tick(MinecraftServer s) {
+-        int now = s.getTicks();
+-        temporary.removeIf(t -> {
+-            if (now < t.until) {
+-                return false;
+-            }
+-            if (t.w.getBlockState(t.pos).equals(t.state)) {
+-                BedArena.set(t.w, t.pos, t.original);
+-            }
++        if (special.isEmpty()) return stack;
++        var config = ArenaRuleAccess.bed();
++        String detail = switch (special) {
++            case "magnet" -> "装备时有 " + config.magnetChance + "% 概率完全抵消击退 · 承伤 " + config.magnetDamage + "%";
++            case "rescue" -> "右键在脚下生成急救平台 · 持续 " + config.rescueSeconds + " 秒";
++            case "wall" -> "右键生成 " + config.wallWidth + "×" + config.wallHeight + " 防护砖墙";
++            case "trap" -> "对地右键布置 · 仅敌队触发";
++            case "warp" -> "右键后原地等待 6 秒 · 移动或受伤中断";
++            case "tnt" -> "对方块右键点燃 · 4 秒后爆炸";
++            default -> "";
++        };
++        if (!detail.isEmpty()) stack.set(DataComponentTypes.LORE, new LoreComponent(List.of(Text.literal(detail))));
++        return stack;
++    }
++
++    public static Object shopLore(ItemStack stack, ComponentType<LoreComponent> component, Object priceLore) {
++        var lines = new ArrayList<>(stack.getOrDefault(component, LoreComponent.DEFAULT).lines());
++        lines.addAll(((LoreComponent)priceLore).lines());
++        return stack.set(component, new LoreComponent(lines));
++    }
++
++    private static void notice(ServerPlayerEntity player, String text) {
++        player.sendMessage(Text.literal(text), true);
++    }
++
++    public static ActionResult use(ServerPlayerEntity player, Hand hand, BlockHitResult hit) {
++        if (hand != Hand.MAIN_HAND || !BedWars.fighter(player)) return ActionResult.PASS;
++        ItemStack stack = player.getStackInHand(hand);
++        boolean used;
++        switch (BedShop.special(stack)) {
++            case "rescue" -> used = rescue(player);
++            case "wall" -> used = wall(player);
++            case "warp" -> used = warp(player);
++            case "trap" -> used = placeTrap(player, hit);
++            case "tnt" -> used = lightTnt(player, hit);
++            default -> { return ActionResult.PASS; }
++        }
++        if (!used) return ActionResult.FAIL;
++        stack.decrement(1);
++        return ActionResult.SUCCESS;
++    }
++
++    private static boolean usableCell(ServerWorld world, BlockPos pos) {
++        if (!BedArena.contains(world, pos) || !world.isChunkLoaded(pos)) return false;
++        BlockState state = world.getBlockState(pos);
++        return ArenaBlocks.replaceableGround(state) && state.getFluidState().isEmpty() && !state.hasBlockEntity();
++    }
++
++    /** Journal the entire placement before changing any cell. The existing arena reset owns crash recovery. */
++    private static List<Tile> build(ServerWorld world, List<BlockPos> cells, BlockState block) {
++        var placed = new ArrayList<Tile>(cells.size());
++        for (BlockPos pos : cells) {
++            if (!BedArena.capture(world, pos)) return List.of();
++        }
++        for (BlockPos pos : cells) {
++            BlockState original = world.getBlockState(pos);
++            if (BedArena.set(world, pos, block)) placed.add(new Tile(pos, original));
++        }
++        return placed;
++    }
++
++    private static boolean cooling(ServerPlayerEntity player, Map<UUID, Integer> timers, int now, String name) {
++        int left = timers.getOrDefault(player.getUuid(), 0) - now;
++        if (left <= 0) return false;
++        notice(player, name + "冷却中 · " + ((left + 19) / 20) + " 秒");
++        return true;
++    }
++
++    private static boolean rescue(ServerPlayerEntity player) {
++        var rules = ArenaRuleAccess.bed();
++        var world = player.getServerWorld();
++        int now = player.getServer().getTicks();
++        if (cooling(player, rescueCooldowns, now, "急救平台")) return false;
++        BlockPos center = player.getBlockPos().down();
++        if (platforms.size() >= MAX_PLATFORMS || !usableCell(world, center)) {
++            notice(player, "脚下没有可部署急救平台的空间。");
++            return false;
++        }
++        var cells = new ArrayList<BlockPos>(17);
++        for (int z = 0; z < RESCUE_SHAPE.length; z++) {
++            for (int x = 0; x < RESCUE_SHAPE[z].length(); x++) {
++                if (RESCUE_SHAPE[z].charAt(x) != '#') continue;
++                BlockPos pos = center.add(x - 2, 0, z - 2);
++                if (usableCell(world, pos) && spaceForBlock(world, pos)) cells.add(pos);
++            }
++        }
++        if (!cells.contains(center)) {
++            notice(player, "脚下有玩家或生物，急救平台未部署。");
++            return false;
++        }
++        var tiles = build(world, cells, RescueTile.BLOCK.getDefaultState());
++        if (tiles.isEmpty()) return false;
++        platforms.add(new Platform(world, tiles, now + rules.rescueSeconds * 20));
++        rescueCooldowns.put(player.getUuid(), now + rules.rescueCooldown * 20);
++        notice(player, "急救平台已部署 · " + rules.rescueSeconds + " 秒后消失。");
++        return true;
++    }
++
++    private static boolean spaceForBlock(ServerWorld world, BlockPos pos) {
++        return world.getEntitiesByClass(LivingEntity.class, new Box(pos), entity -> entity.isAlive() && !entity.isSpectator()).isEmpty();
++    }
++
++    private static boolean wall(ServerPlayerEntity player) {
++        var rules = ArenaRuleAccess.bed();
++        var world = player.getServerWorld();
++        int now = player.getServer().getTicks();
++        if (cooling(player, wallCooldowns, now, "防护砖墙")) return false;
++        Direction facing = player.getHorizontalFacing();
++        Direction across = facing.rotateYClockwise();
++        BlockPos center = player.getBlockPos().offset(facing, rules.wallDistance);
++        int half = rules.wallWidth / 2;
++        var cells = new ArrayList<BlockPos>(rules.wallWidth * rules.wallHeight);
++        for (int side = -half; side <= half; side++) {
++            for (int y = 0; y < rules.wallHeight; y++) {
++                BlockPos pos = center.offset(across, side).up(y);
++                if (usableCell(world, pos) && spaceForBlock(world, pos)) cells.add(pos);
++            }
++        }
++        if (cells.isEmpty()) {
++            notice(player, "面前没有可搭建防护砖墙的位置。");
++            return false;
++        }
++        if (build(world, cells, Blocks.BRICKS.getDefaultState()).isEmpty()) return false;
++        wallCooldowns.put(player.getUuid(), now + rules.wallCooldown * 20);
++        return true;
++    }
++
++    private static boolean placeTrap(ServerPlayerEntity player, BlockHitResult hit) {
++        if (hit == null || traps.size() >= 64) return false;
++        var world = player.getServerWorld();
++        BlockPos pos = hit.getBlockPos().offset(hit.getSide());
++        if (!usableCell(world, pos)) return false;
++        BlockState original = world.getBlockState(pos);
++        if (!BedArena.set(world, pos, Blocks.TRIPWIRE.getDefaultState())) return false;
++        traps.add(new Trap(world, pos, original, BedWars.team(player)));
++        return true;
++    }
++
++    private static boolean lightTnt(ServerPlayerEntity player, BlockHitResult hit) {
++        if (hit == null) return false;
++        var world = player.getServerWorld();
++        BlockPos pos = hit.getBlockPos().offset(hit.getSide());
++        if (!usableCell(world, pos)) return false;
++        var tnt = new TntEntity(world, pos.getX() + 0.5, pos.getY(), pos.getZ() + 0.5, player);
++        tnt.setFuse(80);
++        BedWars.stamp(tnt);
++        return world.spawnEntity(tnt);
++    }
++
++    private static boolean warp(ServerPlayerEntity player) {
++        var pending = new Warp(player.getServerWorld(), player.getPos(), player.getServer().getTicks() + 120);
++        if (warps.putIfAbsent(player.getUuid(), pending) != null) return false;
++        notice(player, "回城中 · 保持不动 6 秒，受伤会打断。");
++        return true;
++    }
++
++    public static void tick(MinecraftServer server) {
++        int now = server.getTicks();
++        while (!platforms.isEmpty() && platforms.peek().until <= now) {
++            var pad = platforms.remove();
++            var unloaded = new ArrayList<Tile>();
++            for (var tile : pad.tiles) {
++                if (!pad.world.isChunkLoaded(tile.pos)) unloaded.add(tile);
++                else if (pad.world.getBlockState(tile.pos).isOf(RescueTile.BLOCK)) BedArena.set(pad.world, tile.pos, tile.original);
++            }
++            if (!unloaded.isEmpty()) platforms.add(new Platform(pad.world, unloaded, now + 20));
++        }
++        warps.entrySet().removeIf(entry -> {
++            var player = server.getPlayerManager().getPlayer(entry.getKey());
++            var pending = entry.getValue();
++            if (player == null || !BedWars.fighter(player)) return true;
++            if (player.getWorld() != pending.world || player.getPos().squaredDistanceTo(pending.start) > 0.04) {
++                notice(player, "移动打断回城。");
++                return true;
++            }
++            if (now < pending.until) return false;
++            BedWars.teleportBase(player);
+@@ -179,24 +271,39 @@
+-        warps.entrySet().removeIf(entry -> {
+-            ServerPlayerEntity p = s.getPlayerManager().getPlayer((UUID)entry.getKey());
+-            Warp v = (Warp)entry.getValue();
+-            if (p == null || !BedWars.fighter(p)) {
+-                return true;
+-            }
+-            if (p.getWorld() != v.w || p.getPos().squaredDistanceTo(v.start) > 0.04) {
+-                p.sendMessage(Text.literal("\u79fb\u52a8\u6253\u65ad\u56de\u57ce\u3002"), true);
+-                return true;
+-            }
+-            if (now >= v.until) {
+-                BedWars.teleportBase(p);
+-                return true;
+-            }
+-            return false;
+-        });
+-        traps.removeIf(t -> {
+-            if (!t.w.getBlockState(t.pos).isOf(Blocks.TRIPWIRE)) {
+-                return true;
+-            }
+-            for (ServerPlayerEntity p : t.w.getPlayers()) {
+-                if (!BedWars.fighter(p) || t.team.equals(BedWars.team(p)) || !p.getBoundingBox().intersects(new Box(t.pos).expand(0.25))) continue;
+-                for (RegistryEntry<StatusEffect> effect : List.of(StatusEffects.BLINDNESS, StatusEffects.SLOWNESS, StatusEffects.WEAKNESS)) {
+-                    p.addStatusEffect(new StatusEffectInstance(effect, 100, 2));
++        traps.removeIf(BedSpecial::trigger);
++    }
++
++    private static boolean trigger(Trap trap) {
++        if (!trap.world.isChunkLoaded(trap.pos)) return false;
++        if (!trap.world.getBlockState(trap.pos).isOf(Blocks.TRIPWIRE)) return true;
++        var enemies = trap.world.getEntitiesByClass(ServerPlayerEntity.class, new Box(trap.pos).expand(0.25),
++                player -> BedWars.fighter(player) && !Objects.equals(trap.team, BedWars.team(player)));
++        if (enemies.isEmpty() || !BedArena.set(trap.world, trap.pos, trap.original)) return false;
++        var enemy = enemies.getFirst();
++        for (var effect : List.of(StatusEffects.BLINDNESS, StatusEffects.SLOWNESS, StatusEffects.WEAKNESS)) {
++            enemy.addStatusEffect(new StatusEffectInstance(effect, 100, 2));
++        }
++        for (var mate : trap.world.getPlayers()) {
++            if (BedWars.inRound(mate) && Objects.equals(trap.team, BedWars.team(mate)))
++                mate.sendMessage(Text.literal("基地陷阱已被敌人触发！"), false);
++        }
++        return true;
++    }
++
++    public static void explode(TntEntity entity) {
++        if (!(entity.getWorld() instanceof ServerWorld world) || !BedWars.projectileValid(entity)
++                || !(entity.getOwner() instanceof ServerPlayerEntity owner)) return;
++        Vec3d center = entity.getPos();
++        var impacts = new LinkedHashMap<ServerPlayerEntity, Double>();
++        for (var target : world.getPlayers()) {
++            if (!BedWars.permits(entity, target)) continue;
++            double distance = target.getPos().distanceTo(center) / 8.0;
++            if (distance <= 1) impacts.put(target, (1 - distance) * Explosion.getExposure(center, target));
++        }
++        BlockPos origin = entity.getBlockPos();
++        for (int x = -4; x <= 4; x++) {
++            for (int y = -4; y <= 4; y++) {
++                for (int z = -4; z <= 4; z++) {
++                    if (x*x + y*y + z*z > 16) continue;
++                    BlockPos pos = origin.add(x, y, z);
++                    if (world.isChunkLoaded(pos) && BedArena.added(world, pos)
++                            && !(world.getBlockState(pos).getBlock() instanceof BedBlock))
++                        BedArena.set(world, pos, Blocks.AIR.getDefaultState());
+@@ -204,106 +311,17 @@
+-                for (ServerPlayerEntity mate : t.w.getPlayers()) {
+-                    if (!BedWars.inRound(mate) || !t.team.equals(BedWars.team(mate))) continue;
+-                    mate.sendMessage(Text.literal("\u57fa\u5730\u9677\u9631\u5df2\u88ab\u654c\u4eba\u89e6\u53d1\uff01"), false);
+-                }
+-                BedArena.set(t.w, t.pos, t.original);
+-                return true;
+-            }
+-            return false;
+-        });
+-    }
+-
+-    public static void explode(TntEntity e) {
+-        ServerWorld w;
+-        block8: {
+-            block7: {
+-                World world = e.getWorld();
+-                if (!(world instanceof ServerWorld)) break block7;
+-                w = (ServerWorld)world;
+-                if (BedWars.projectileValid(e)) break block8;
+-            }
+-            return;
+-        }
+-        ServerPlayerEntity owner = (ServerPlayerEntity)e.getOwner();
+-        Vec3d center = e.getPos();
+-        LinkedHashMap<ServerPlayerEntity, Double> impacts = new LinkedHashMap<ServerPlayerEntity, Double>();
+-        for (ServerPlayerEntity p : w.getPlayers()) {
+-            double distance;
+-            if (!BedWars.fighter(p) || p != owner && BedWars.sameTeam(owner, p) || !((distance = p.getPos().distanceTo(center) / 8.0) <= 1.0)) continue;
+-            impacts.put(p, (1.0 - distance) * (double)Explosion.getExposure(center, p));
+-        }
+-        BlockPos origin = e.getBlockPos();
+-        for (int x = -4; x <= 4; ++x) {
+-            for (int y = -4; y <= 4; ++y) {
+-                for (int z = -4; z <= 4; ++z) {
+-                    BlockPos q;
+-                    if (x * x + y * y + z * z > 16 || !BedArena.added(w, q = origin.add(x, y, z)) || w.getBlockState(q).getBlock() instanceof BedBlock) continue;
+-                    BedArena.set(w, q, Blocks.AIR.getDefaultState());
+-                }
+-            }
+-        }
+-        BedBlastDamage source = new BedBlastDamage(w.getDamageSources().explosion(e, owner));
+-        for (Map.Entry entry : impacts.entrySet()) {
+-            ServerPlayerEntity p = (ServerPlayerEntity)entry.getKey();
+-            double impact = (Double)entry.getValue();
+-            if (impact <= 0.0 || !p.damage(source, (float)((impact * impact + impact) * 28.0 + 1.0))) continue;
+-            Vec3d direction = p.getPos().subtract(center);
+-            p.takeKnockback(impact, -direction.x, -direction.z);
+-            p.velocityModified = true;
+-        }
+-        w.spawnParticles(ParticleTypes.EXPLOSION_EMITTER, e.getX(), e.getY(), e.getZ(), 1, 0.0, 0.0, 0.0, 0.0);
+-        w.playSound(null, e.getBlockPos(), SoundEvents.ENTITY_GENERIC_EXPLODE.value(), SoundCategory.BLOCKS, 4.0f, 1.0f);
+-    }
+-
+-    public static void explodeSkull(WitherSkullEntity e) {
+-        ServerWorld w;
+-        Object object;
+-        block10: {
+-            block9: {
+-                object = e.getWorld();
+-                if (!(object instanceof ServerWorld)) break block9;
+-                w = (ServerWorld)object;
+-                if (BedWars.projectileValid(e) && (object = e.getOwner()) instanceof ServerPlayerEntity) break block10;
+-            }
+-            return;
+-        }
+-        ServerPlayerEntity owner = (ServerPlayerEntity)object;
+-        Vec3d center = e.getPos();
+-        BlockPos origin = e.getBlockPos();
+-        LinkedHashMap<ServerPlayerEntity, Double> impacts = new LinkedHashMap<ServerPlayerEntity, Double>();
+-        for (ServerPlayerEntity p : w.getPlayers()) {
+-            double distance;
+-            if (!BedWars.fighter(p) || p != owner && BedWars.sameTeam(owner, p) || (distance = p.getPos().distanceTo(center)) > 3.0) continue;
+-            impacts.put(p, (1.0 - distance / 3.0) * (double)Explosion.getExposure(center, p));
+-        }
+-        for (int x = -2; x <= 2; ++x) {
+-            for (int y = -2; y <= 2; ++y) {
+-                for (int z = -2; z <= 2; ++z) {
+-                    BlockPos q;
+-                    if (!((double)(x * x + y * y + z * z) <= 2.25) || !BedArena.added(w, q = origin.add(x, y, z)) || w.getBlockState(q).getBlock() instanceof BedBlock) continue;
+-                    BedArena.set(w, q, Blocks.AIR.getDefaultState());
+-                }
+-            }
+-        }
+-        BedBlastDamage source = new BedBlastDamage(w.getDamageSources().explosion(e, owner));
+-        for (Map.Entry entry : impacts.entrySet()) {
+-            ServerPlayerEntity p = (ServerPlayerEntity)entry.getKey();
+-            double impact = (Double)entry.getValue();
+-            if (!(impact > 0.0) || !p.damage(source, (float)(impact * 8.0 + 2.0))) continue;
+-            if (p.isAlive()) {
+-                p.addStatusEffect(new StatusEffectInstance(StatusEffects.WITHER, 100, 0), owner);
+-            }
+-            Vec3d direction = p.getPos().subtract(center);
+-            p.takeKnockback(impact, -direction.x, -direction.z);
+-            p.velocityModified = true;
+-        }
+-        w.spawnParticles(ParticleTypes.EXPLOSION_EMITTER, e.getX(), e.getY(), e.getZ(), 1, 0.0, 0.0, 0.0, 0.0);
+-        w.playSound(null, e.getBlockPos(), SoundEvents.ENTITY_GENERIC_EXPLODE.value(), SoundCategory.BLOCKS, 3.0f, 1.0f);
+-    }
+-
+-    private record Temporary(ServerWorld w, BlockPos pos, BlockState state, BlockState original, int until) {
+-    }
+-
+-    private record Trap(ServerWorld w, BlockPos pos, BlockState original, String team) {
+-    }
+-
+-    private record Warp(ServerWorld w, Vec3d start, int until) {
++            }
++        }
++        var source = new BedBlastDamage(world.getDamageSources().explosion(entity, owner));
++        for (var entry : impacts.entrySet()) {
++            var target = entry.getKey();
++            double impact = entry.getValue();
++            if (impact <= 0 || !target.damage(source, (float)((impact * impact + impact) * 28 + 1))) continue;
++            Vec3d direction = target.getPos().subtract(center);
++            target.takeKnockback(impact, -direction.x, -direction.z);
++            target.velocityModified = true;
++        }
++        world.spawnParticles(ParticleTypes.EXPLOSION_EMITTER, center.x, center.y, center.z, 1, 0, 0, 0, 0);
++        world.playSound(null, entity.getBlockPos(), SoundEvents.ENTITY_GENERIC_EXPLODE.value(), SoundCategory.BLOCKS, 4f, 1f);
++    }
++
++    public static void explodeSkull(WitherSkullEntity skull) {
++        BedBowRules.legacyHit(skull);
+@@ -312 +329,0 @@
+-
+--- a/com/megawalls/minigame/BedWitherSkull.java
++++ b/com/megawalls/minigame/BedWitherSkull.java
+@@ -1,3 +0,0 @@
+-/*
+- * Decompiled with CFR 0.152.
+- */
+@@ -5,3 +1,0 @@
+-
+-import com.megawalls.minigame.BedSpecial;
+-import com.megawalls.minigame.BedWars;
+@@ -10 +3,0 @@
+-import net.minecraft.server.world.ServerWorld;
+@@ -13,14 +6,3 @@
+-
+-public final class BedWitherSkull
+-extends WitherSkullEntity {
+-    public BedWitherSkull(EntityType<? extends WitherSkullEntity> type, World world) {
+-        super(type, world);
+-    }
+-
+-    @Override
+-    protected void onCollision(HitResult hitResult) {
+-        if (this.getWorld() instanceof ServerWorld && BedWars.projectileValid(this)) {
+-            BedSpecial.explodeSkull(this);
+-        }
+-        this.discard();
+-    }
++public final class BedWitherSkull extends WitherSkullEntity {
++    public BedWitherSkull(EntityType<? extends WitherSkullEntity> kind,World world){super(kind,world);}
++    @Override protected void onCollision(HitResult hit){BedBowRules.impact(this,hit);discard();}
+@@ -28 +9,0 @@
+-
+--- a/com/megawalls/mixin/MWWerewolfPotionMixin.java
++++ b/com/megawalls/mixin/MWWerewolfPotionMixin.java
+@@ -26,0 +27,21 @@
++    // Explicit 1.21.1 intermediary selector, verified against the pinned mappings.
++    // Vanilla assumes potion count == 1 and ignores a failed bottle insertion.
++    @Redirect(method={"method_7861"}, at=@At(value="INVOKE",
++        target="Lnet/minecraft/class_1661;method_7394(Lnet/minecraft/class_1799;)Z", remap=false), remap=false)
++    private boolean mw$returnStackedPotionBottle(net.minecraft.entity.player.PlayerInventory inventory,
++            ItemStack bottle, ItemStack potionStack, World world, LivingEntity user) {
++        boolean inserted = inventory.insertStack(bottle);
++        if (Boolean.getBoolean("mwqa.debug")) System.out.println("MWQA bottle redirect inserted=" + inserted
++            + " bottle=" + bottle.getCount() + " potion=" + potionStack.getCount()
++            + " kit=" + com.megawalls.maintenance.KitPotions.isKitPotion(potionStack));
++        if (!inserted && !bottle.isEmpty() && !world.isClient
++                && user instanceof ServerPlayerEntity player
++                && com.megawalls.maintenance.KitPotions.isKitPotion(potionStack)) {
++            var dropped = player.dropItem(bottle, false);
++            if (Boolean.getBoolean("mwqa.debug")) System.out.println("MWQA bottle dropped=" + (dropped == null ? "null" : dropped.getUuidAsString())
++                + " removed=" + (dropped != null && dropped.isRemoved()));
++            return true;
++        }
++        return inserted;
++    }
++
+--- a/com/megawalls/passive/LegacyBattle.java
++++ b/com/megawalls/passive/LegacyBattle.java
+@@ -119 +119 @@
+-                p.addStatusEffect(new StatusEffectInstance(StatusEffects.REGENERATION, 200, 0));
++                p.addStatusEffect(new StatusEffectInstance(StatusEffects.REGENERATION, 120, 1));
+--- a/com/megawalls/skill/SkillManager.java
++++ b/com/megawalls/skill/SkillManager.java
+@@ -107 +107 @@
+-            player.sendMessage(Text.literal("\u00a7c\u89c2\u6218\u6216\u6b7b\u4ea1\u65f6\u4e0d\u80fd\u65bd\u653e\u6280\u80fd\u3002"), true);
++            player.sendMessage(Text.literal("§c观战或死亡时不能施放技能。"), true);
+@@ -112 +112 @@
+-            player.sendMessage(Text.literal("\u00a7c[\u8d85\u7ea7\u6218\u5899] \u8bf7\u5148\u9009\u62e9\u804c\u4e1a\uff01"), false);
++            player.sendMessage(Text.literal("§c[超级战墙] 请先选择职业！"), false);
+@@ -116 +116 @@
+-            player.sendMessage(Text.literal("\u00a7e\u5c1a\u672a\u8fdb\u5165\u6218\u6597\u3002\u6309 M \u2192 \u5f00\u59cb\u6e38\u620f \u2192 \u804c\u4e1a\u7ec3\u4e60\uff0c\u6216\u7b49\u5f85\u6b63\u5f0f\u5f00\u5c40\u3002"), false);
++            player.sendMessage(Text.literal("§e尚未进入战斗。按 M → 开始游戏 → 职业练习，或等待正式开局。"), false);
+@@ -120 +120 @@
+-            player.sendMessage(Text.literal("\u00a7e\u51c6\u5907\u9636\u6bb5\u4e0d\u80fd\u65bd\u653e\u4e3b\u52a8\u6280\u80fd\uff0c\u8bf7\u7b49\u5f85\u5899\u5012\u3002"), true);
++            player.sendMessage(Text.literal("§e准备阶段不能施放主动技能，请等待墙倒。"), true);
+@@ -124 +124 @@
+-            player.sendMessage(Text.literal("\u00a7e\u8bf7\u7528\u4efb\u610f\u5251\u53f3\u952e\u3001\u5f13\u5de6\u952e\u6216\u6309 V\uff1b\u9f39\u9f20\u4e5f\u53ef\u7528\u94f2\u5b50\u3002"), true);
++            player.sendMessage(Text.literal("§e请用任意剑右键、弓左键或按 V；鼹鼠也可用铲子。"), true);
+@@ -131 +131 @@
+-            player.sendMessage(Text.literal("\u00a7c[\u8d85\u7ea7\u6218\u5899] \u6280\u80fd\u51b7\u5374\u4e2d\uff1a" + data.getSkillCooldown() / 20 + "\u79d2"), false);
++            player.sendMessage(Text.literal("§c[超级战墙] 技能冷却中：" + data.getSkillCooldown() / 20 + "秒"), false);
+@@ -141,2 +141,2 @@
+-        player.sendMessage(Text.literal("\u00a7a" + skill.getName() + " \u00a7e\u6fc0\u6d3b\uff01"), false);
+-        player.sendMessage(Text.literal("\u00a7a\u6280\u80fd\u6fc0\u6d3b\u6210\u529f\uff01"), true);
++        player.sendMessage(Text.literal("§a" + skill.getName() + " §e激活！"), false);
++        player.sendMessage(Text.literal("§a技能激活成功！"), true);
+@@ -150,0 +151 @@
++        boolean urgent = false;
+@@ -159,0 +161 @@
++            urgent = true;
+@@ -164,0 +167 @@
++            urgent = true;
+@@ -171,0 +175 @@
++            urgent = true;
+@@ -175,0 +180 @@
++            if (data.getSkillCooldown() == 0) urgent = true;
+@@ -184,3 +189,3 @@
+-            SkillManager.syncToClient(player);
+-        }
+-        if (player.age % 5 == 0 && !changed) {
++            if (urgent || player.age % 4 == 0) SkillManager.syncToClient(player);
++        }
++        if (player.age % 20 == 0 && !changed) {
+@@ -228 +233 @@
+-            player.sendMessage(Text.literal("\u00a7a[\u8d85\u7ea7\u6218\u5899]\u00a7e \u804c\u4e1a\u88c5\u5907\u5df2\u7ed1\u5b9a\uff0c\u4e0d\u53ef\u6389\u843d/\u4e22\u5f03"), false);
++            player.sendMessage(Text.literal("§a[超级战墙]§e 职业装备已绑定，不可掉落/丢弃"), false);
+--- a/com/megawalls/skill/skills/EndermanSkill.java
++++ b/com/megawalls/skill/skills/EndermanSkill.java
+@@ -1,3 +0,0 @@
+-/*
+- * Decompiled with CFR 0.152.
+- */
+@@ -11 +7,0 @@
+-import java.util.Optional;
+@@ -15,0 +12 @@
++import net.minecraft.registry.tag.FluidTags;
+@@ -17 +13,0 @@
+-import net.minecraft.server.world.ServerWorld;
+@@ -25,6 +21,7 @@
+-public class EndermanSkill
+-extends Skill {
+-    private static final double RANGE = 25.0;
+-    private static final double RANGE_SQUARED = 625.0;
+-    private static final double MAX_AIM_MISS = 2.0;
+-    private static final double MIN_CONE_DOT = Math.cos(Math.toRadians(15.0));
++public class EndermanSkill extends Skill {
++    private static final double RANGE = 25;
++    public static final double MIN_CONE_DOT = Math.cos(Math.toRadians(30));
++    private record Destination(Vec3d position, float yaw, float pitch, boolean weakness) {}
++    private Destination prepared;
++    private ServerPlayerEntity preparedPlayer;
++    private int preparedTick;
+@@ -33 +30 @@
+-        super("\u77ac\u79fb", "\u4f18\u5148\u77ac\u79fb\u81f3\u51c6\u5fc3\u547d\u4e2d\u7684\u654c\u4eba\uff1b\u5426\u5219\u53ea\u9009\u62e9\u504f\u79bb\u51c6\u5fc3\u6700\u591a2\u683c\u4e14\u572815\u5ea6\u534a\u89d2\u5185\u7684\u654c\u4eba\uff1b\u590d\u5236\u5176\u4f4d\u7f6e\u4e0e\u89c6\u89d2\uff1b\u8d85\u8fc710\u683c\u7a7f\u5899\u65f6\u81ea\u8eab\u865a\u5f31II 3\u79d2\uff1b\u901f\u5ea6III 5\u79d2", 120);
++        super("瞬移", "25格内准心目标优先；否则选择面向30度内最接近准心的敌人；复制位置与视角，允许空中目标；速度III 5秒", 120);
+@@ -35,7 +32,34 @@
+-
+-    @Override
+-    public boolean canExecute(ServerPlayerEntity player) {
+-        boolean found;
+-        boolean bl = found = this.destination(player) != null;
+-        if (!found) {
+-            this.sendMessage(player, "\u00a7c\u9762\u5411\u768425\u683c\u5185\u6ca1\u6709\u53ef\u5b89\u5168\u62b5\u8fbe\u7684\u654c\u4eba\uff0c\u672a\u6d88\u8017\u80fd\u91cf\u3002");
++    @Override public boolean canExecute(ServerPlayerEntity player) {
++        prepared = destination(player); preparedPlayer = player; preparedTick = player.getServer().getTicks();
++        if (prepared == null) sendMessage(player, "§c面向的25格内没有可安全抵达的敌人，未消耗能量。");
++        return prepared != null;
++    }
++    private Destination destination(ServerPlayerEntity player) {
++        if (!GameState.insideArena(player, player.getBoundingBox())) return null;
++        Vec3d eye = player.getEyePos(), look = player.getRotationVec(1).normalize();
++        Vec3d rayEnd = eye.add(look.multiply(RANGE));
++        Destination direct = null, cone = null;
++        double directDistance = Double.POSITIVE_INFINITY, bestDot = -1, coneDistance = Double.POSITIVE_INFINITY;
++        for (ServerPlayerEntity enemy : player.getServerWorld().getPlayers()) {
++            if (!GameState.enemy(player, enemy) || player.squaredDistanceTo(enemy) > RANGE * RANGE
++                    || !GameState.insideArena(enemy, enemy.getBoundingBox())) continue;
++            Box targetBox = enemy.getBoundingBox();
++            Vec3d offset = targetBox.getCenter().subtract(eye);
++            double length = offset.length();
++            if (length < 1.0e-5) continue;
++            var hit = targetBox.raycast(eye, rayEnd);
++            boolean exact = targetBox.contains(eye) || hit.isPresent();
++            double dot = look.dotProduct(offset) / length;
++            if (!exact && dot < MIN_CONE_DOT) continue;
++            Vec3d target = safePosition(player, enemy.getPos());
++            if (target == null) continue;
++            boolean obstructed = player.getServerWorld().raycast(new RaycastContext(eye, targetBox.getCenter(),
++                    RaycastContext.ShapeType.COLLIDER, RaycastContext.FluidHandling.NONE, player)).getType() != HitResult.Type.MISS;
++            Destination candidate = new Destination(target, enemy.getYaw(), enemy.getPitch(),
++                    ClassBalanceRules.teleportWeakness(player.squaredDistanceTo(enemy), obstructed));
++            if (exact) {
++                double distance = hit.map(eye::squaredDistanceTo).orElse(0.0);
++                if (distance < directDistance) { direct = candidate; directDistance = distance; }
++            } else if (dot > bestDot + 1.0e-6 || Math.abs(dot - bestDot) <= 1.0e-6 && length < coneDistance) {
++                cone = candidate; bestDot = dot; coneDistance = length;
++            }
+@@ -43 +67 @@
+-        return found;
++        return direct != null ? direct : cone;
+@@ -45,4 +69,8 @@
+-
+-    private Destination destination(ServerPlayerEntity player) {
+-        if (!GameState.insideArena(player, player.getBoundingBox())) {
+-            return null;
++    private Vec3d safePosition(ServerPlayerEntity player, Vec3d target) {
++        // Jumping/swimming targets are valid; only the destination collision and hazards matter.
++        if (safe(player, target)) return target;
++        for (double y : new double[]{0, 0.5, 1}) {
++            for (double[] offset : new double[][]{{.75,0},{-.75,0},{0,.75},{0,-.75},{.75,.75},{-.75,-.75}}) {
++                Vec3d nearby = target.add(offset[0], y, offset[1]);
++                if (safe(player, nearby)) return nearby;
++            }
+@@ -50,34 +78,9 @@
+-        Vec3d eye = player.getEyePos();
+-        Vec3d look = player.getRotationVec(1.0f).normalize();
+-        Vec3d rayEnd = eye.add(look.multiply(25.0));
+-        Destination bestDirect = null;
+-        Destination bestCone = null;
+-        double directDistance = Double.POSITIVE_INFINITY;
+-        double coneDot = MIN_CONE_DOT;
+-        double coneDistance = Double.POSITIVE_INFINITY;
+-        for (ServerPlayerEntity enemy : player.getServerWorld().getPlayers()) {
+-            Vec3d aimPoint;
+-            Vec3d offset;
+-            double length;
+-            if (!GameState.enemy(player, enemy) || player.squaredDistanceTo(enemy) > 625.0 || !GameState.insideArena(enemy, enemy.getBoundingBox())) continue;
+-            Vec3d target = enemy.getPos();
+-            Box box = player.getBoundingBox().offset(target.subtract(player.getPos()));
+-            BlockPos feet = BlockPos.ofFloored(target);
+-            ServerWorld world = player.getServerWorld();
+-            if (!world.isChunkLoaded(feet) || !world.getWorldBorder().contains(box) || !GameState.insideArena(player, box) || world.getBlockCollisions(player, box).iterator().hasNext() || !world.getFluidState(feet).isEmpty() || !world.getFluidState(feet.up()).isEmpty() || world.getBlockState(feet.down()).getCollisionShape(world, feet.down()).isEmpty() || world.getBlockState(feet).isIn(BlockTags.FIRE) || (length = (offset = (aimPoint = enemy.getBoundingBox().getCenter()).subtract(eye)).length()) <= 1.0E-4) continue;
+-            double dot = look.dotProduct(offset) / length;
+-            Optional<Vec3d> directHit = enemy.getBoundingBox().raycast(eye, rayEnd);
+-            if (directHit.isEmpty() && (dot < MIN_CONE_DOT || enemy.getBoundingBox().expand(2.0).raycast(eye, rayEnd).isEmpty())) continue;
+-            boolean obstructed = world.raycast(new RaycastContext(eye, aimPoint, RaycastContext.ShapeType.COLLIDER, RaycastContext.FluidHandling.NONE, player)).getType() != HitResult.Type.MISS;
+-            Destination candidate = new Destination(target, enemy.getYaw(), enemy.getPitch(), ClassBalanceRules.teleportWeakness(player.squaredDistanceTo(enemy), obstructed));
+-            if (directHit.isPresent()) {
+-                double hitDistance = eye.squaredDistanceTo(directHit.get());
+-                if (!(hitDistance < directDistance)) continue;
+-                bestDirect = candidate;
+-                directDistance = hitDistance;
+-                continue;
+-            }
+-            if (!(dot > coneDot + 1.0E-6) && (!(Math.abs(dot - coneDot) <= 1.0E-6) || !(length < coneDistance))) continue;
+-            bestCone = candidate;
+-            coneDot = dot;
+-            coneDistance = length;
++        return null;
++    }
++    private boolean safe(ServerPlayerEntity player, Vec3d target) {
++        var world = player.getServerWorld();
++        Box box = player.getBoundingBox().offset(target.subtract(player.getPos())).contract(1.0e-5);
++        if (!world.getWorldBorder().contains(box) || !GameState.insideArena(player, box)) return false;
++        for (BlockPos pos : BlockPos.iterate(BlockPos.ofFloored(box.minX, box.minY, box.minZ), BlockPos.ofFloored(box.maxX, box.maxY, box.maxZ))) {
++            if (!world.isChunkLoaded(pos) || !world.isInBuildLimit(pos) || world.getFluidState(pos).isIn(FluidTags.LAVA)
++                    || world.getBlockState(pos).isIn(BlockTags.FIRE)) return false;
+@@ -85 +88 @@
+-        return bestDirect != null ? bestDirect : bestCone;
++        return !world.getBlockCollisions(player, box).iterator().hasNext();
+@@ -87,9 +90,5 @@
+-
+-    @Override
+-    public void execute(ServerPlayerEntity player) {
+-        Destination safe = this.destination(player);
+-        if (safe == null) {
+-            return;
+-        }
+-        Vec3d origin = player.getPos();
+-        float originYaw = player.getYaw();
++    @Override public void execute(ServerPlayerEntity player) {
++        Destination safe = preparedPlayer == player && preparedTick == player.getServer().getTicks() ? prepared : destination(player);
++        prepared = null; preparedPlayer = null;
++        if (safe == null) return;
++        Vec3d origin = player.getPos(); float originYaw = player.getYaw();
+@@ -97 +96 @@
+-        player.setHeadYaw(safe.yaw());
++        player.setHeadYaw(safe.yaw()); player.fallDistance = 0; player.setVelocity(Vec3d.ZERO); player.velocityModified = true;
+@@ -100,7 +99,2 @@
+-        if (safe.weakness()) {
+-            player.addStatusEffect(new StatusEffectInstance(StatusEffects.WEAKNESS, 60, 1));
+-        }
+-        SkillEffects.sound(player, SoundEvents.ENTITY_ENDERMAN_TELEPORT, 1.0f, 1.0f);
+-    }
+-
+-    private record Destination(Vec3d position, float yaw, float pitch, boolean weakness) {
++        if (safe.weakness()) player.addStatusEffect(new StatusEffectInstance(StatusEffects.WEAKNESS, 60, 1));
++        SkillEffects.sound(player, SoundEvents.ENTITY_ENDERMAN_TELEPORT, 1, 1);
+@@ -109 +102,0 @@
+-
+--- a/com/megawalls/skill/skills/GolemSkill.java
++++ b/com/megawalls/skill/skills/GolemSkill.java
+@@ -13,0 +14,2 @@
++import net.minecraft.entity.effect.StatusEffectInstance;
++import net.minecraft.entity.effect.StatusEffects;
+@@ -21 +23 @@
+-        super("\u94a2\u94c1\u4e4b\u51fb", "4.5\u683c\u51855HP\u771f\u5b9e\u4f24\u5bb3\u5e76\u62c9\u62fd", 40);
++        super("钢铁之击", "4.5格内5HP真实伤害、1秒失明II并拉拽", 40);
+@@ -32,0 +35 @@
++            enemy.addStatusEffect(new StatusEffectInstance(StatusEffects.BLINDNESS, 20, 1));
+--- a/com/megawalls/skill/skills/HerobrineSkill.java
++++ b/com/megawalls/skill/skills/HerobrineSkill.java
+@@ -19 +19 @@
+-        super("\u96f7\u795e\u4e4b\u6012", "5\u683c\u51854.5HP\u771f\u5b9e\u4f24\u5bb3", 20);
++        super("雷神之怒", "5格内5HP真实伤害", 20);
+@@ -30 +30 @@
+-            TrueDamage.hit(player, enemy, 4.5f);
++            TrueDamage.hit(player, enemy, 5.0f);
+--- a/com/megawalls/wither/WitherDefense.java
++++ b/com/megawalls/wither/WitherDefense.java
+@@ -10,0 +11 @@
++import com.megawalls.maintenance.MatchTuning;
+@@ -63,0 +65,2 @@
++    private static int rule(WitherEntity core,String k){return MatchTuning.value(core.getServer(),k);}
++    private static final String[] SPECIAL={"core_bolt","core_fire","core_slow","core_push"};
+@@ -104,5 +107,5 @@
+-        attacker.sendMessage(Text.literal("\u00a7c\u51cb\u96f6 -" + loss + " \u8840 \u00a77\u00b7 \u5269\u4f59 " + remaining), true);
+-        if (remaining > 0 && WitherDefense.active(core) && !waveAt.containsKey(core.getUuid()) && now >= waveReadyAt.getOrDefault(core.getUuid(), 0)) {
+-            waveAt.put(core.getUuid(), now + 60);
+-            for (ServerPlayerEntity p2 : world.getPlayers(p -> WitherDefense.enemy(core, p) && core.squaredDistanceTo((Entity)p) <= 144.0)) {
+-                p2.sendMessage(Text.literal("\u00a7c\u51cb\u96f6\u6b63\u5728\u84c4\u529b\uff013 \u79d2\u540e\u91ca\u653e 8 \u683c\u51b2\u51fb\u6ce2\uff0c\u5feb\u9000\u5f00\uff01"), false);
++        attacker.sendMessage(Text.literal("§c凋零 -" + loss + " 血 §7· 剩余 " + remaining), true);
++        if (remaining > 0 && rule(core,"core_wave")>0 && WitherDefense.active(core) && !waveAt.containsKey(core.getUuid()) && now >= waveReadyAt.getOrDefault(core.getUuid(), 0)) {
++            waveAt.put(core.getUuid(), now + rule(core,"core_charge"));
++            for (ServerPlayerEntity p2 : world.getPlayers(p -> WitherDefense.enemy(core, p) && core.squaredDistanceTo((Entity)p) <= Math.pow(rule(core,"core_wave_r")+4,2))) {
++                p2.sendMessage(Text.literal("§c凋零正在蓄力！"+((rule(core,"core_charge")+19)/20)+" 秒后释放 "+rule(core,"core_wave_r")+" 格冲击波，快退开！"), false);
+@@ -118,3 +121,4 @@
+-        for (int i = 0; i < 48; ++i) {
+-            double angle = (double)i * Math.PI * 2.0 / 48.0;
+-            world.spawnParticles(ParticleTypes.ELECTRIC_SPARK, core.getX() + Math.cos(angle) * 8.0, core.getY() + 0.7, core.getZ() + Math.sin(angle) * 8.0, 2, 0.1, 0.3, 0.1, 0.03);
++        int radius=rule(core,"core_wave_r"), damage=rule(core,"core_wave"); double push=rule(core,"core_push_pct")/100d;
++        for (int i = 0; i < 16; ++i) {
++            double angle = (double)i * Math.PI * 2.0 / 16.0;
++            world.spawnParticles(ParticleTypes.ELECTRIC_SPARK, core.getX() + Math.cos(angle) * radius, core.getY() + 0.7, core.getZ() + Math.sin(angle) * radius, 2, 0.1, 0.3, 0.1, 0.03);
+@@ -124,2 +128,2 @@
+-        for (ServerPlayerEntity p2 : world.getPlayers(p -> WitherDefense.enemy(core, p) && core.squaredDistanceTo((Entity)p) <= 64.0 && core.canSee((Entity)p))) {
+-            if (!p2.damage(source, 15.0f) || !p2.isAlive()) continue;
++        for (ServerPlayerEntity p2 : world.getPlayers(p -> WitherDefense.enemy(core, p) && core.squaredDistanceTo((Entity)p) <= radius*radius && core.canSee((Entity)p))) {
++            if (damage==0 || !p2.damage(source, damage) || !p2.isAlive() || push==0) continue;
+@@ -127 +131 @@
+-            p2.setVelocity(delta.x * 1.2, 0.6, delta.z * 1.2);
++            p2.setVelocity(delta.x * 1.2 * push, 0.6 * push, delta.z * 1.2 * push);
+@@ -152 +156 @@
+-        return WitherDefense.active(core) && p.getServerWorld() == core.getWorld() && GameState.participant(p) && GameState.active(p) && !p.isCreative() && !MatchTeams.core(core).equals(p.getScoreboardTeam().getName());
++        return WitherDefense.active(core) && p.getServerWorld() == core.getWorld() && GameState.participant(p) && GameState.active(p) && !p.isCreative() && p.getScoreboardTeam()!=null && !MatchTeams.core(core).equals(p.getScoreboardTeam().getName());
+@@ -176 +180 @@
+-                    waveReadyAt.put(core.getUuid(), now + 400);
++                    waveReadyAt.put(core.getUuid(), now + rule(core,"core_wave_gap"));
+@@ -181,2 +185,2 @@
+-                        for (ServerPlayerEntity serverPlayerEntity2 : world.getPlayers(p -> WitherDefense.enemy(core, p) && core.squaredDistanceTo((Entity)p) <= 144.0)) {
+-                            serverPlayerEntity2.sendMessage(Text.literal("\u00a7c\u51cb\u96f6\u51b2\u51fb\u6ce2 \u00b7 " + (waveDeadline - now + 19) / 20 + " \u79d2 \u00b7 \u5feb\u9000\u5f00\uff01"), true);
++                        for (ServerPlayerEntity serverPlayerEntity2 : world.getPlayers(p -> WitherDefense.enemy(core, p) && core.squaredDistanceTo((Entity)p) <= Math.pow(rule(core,"core_wave_r")+4,2))) {
++                            serverPlayerEntity2.sendMessage(Text.literal("§c凋零冲击波 · " + (waveDeadline - now + 19) / 20 + " 秒 · 快退开！"), true);
+@@ -189 +193 @@
+-                for (ServerPlayerEntity p3 : world.getPlayers(p -> GameState.participant(p) && GameState.active(p) && team.equals(p.getScoreboardTeam().getName()) && core.squaredDistanceTo((Entity)p) <= 400.0)) {
++                for (ServerPlayerEntity p3 : world.getPlayers(p -> GameState.participant(p) && GameState.active(p) && p.getScoreboardTeam()!=null && team.equals(p.getScoreboardTeam().getName()) && core.squaredDistanceTo((Entity)p) <= 400.0)) {
+@@ -195,2 +199,6 @@
+-            if ((serverPlayerEntity = (ServerPlayerEntity)world.getPlayers(p -> WitherDefense.enemy(core, p) && core.squaredDistanceTo((Entity)p) <= 900.0 && core.canSee((Entity)p)).stream().min(Comparator.comparingDouble(core::squaredDistanceTo)).orElse(null)) == null) continue;
+-            if (now >= skullAt.getOrDefault(core.getUuid(), 0)) {
++            boolean skullDue=rule(core,"core_skull")>0 && now>=skullAt.getOrDefault(core.getUuid(),0);
++            boolean rageDue=rage && now>=rageAt.getOrDefault(core.getUuid(),0);
++            if(!skullDue&&!rageDue)continue;
++            int reach=rule(core,"core_reach");
++            if ((serverPlayerEntity = (ServerPlayerEntity)world.getPlayers(p -> WitherDefense.enemy(core, p) && core.squaredDistanceTo((Entity)p) <= reach*reach && core.canSee((Entity)p)).stream().min(Comparator.comparingDouble(core::squaredDistanceTo)).orElse(null)) == null) continue;
++            if (skullDue) {
+@@ -198 +206 @@
+-                skullAt.put(core.getUuid(), now + 30);
++                skullAt.put(core.getUuid(), now + rule(core,"core_skull_gap"));
+@@ -202,2 +210,4 @@
+-            WitherDefense.special(core, serverPlayerEntity, world.getRandom().nextInt(4));
+-            rageAt.put(core.getUuid(), now + 50);
++            int chosen=-1,available=0;
++            for(int i=0;i<SPECIAL.length;i++)if(rule(core,SPECIAL[i])>0&&world.random.nextInt(++available)==0)chosen=i;
++            if(chosen>=0)WitherDefense.special(core,serverPlayerEntity,chosen);
++            rageAt.put(core.getUuid(), now + rule(core,"core_rage_gap"));
+@@ -228,2 +238,2 @@
+-                if (hit != null) {
+-                    ((ServerPlayerEntity)hit).damage(WitherDefense.fixedDamage(hit.getDamageSources().mobAttack(shot.core)), 6.0f);
++                if (hit != null && rule(shot.core,"core_skull")>0) {
++                    ((ServerPlayerEntity)hit).damage(WitherDefense.fixedDamage(hit.getDamageSources().mobAttack(shot.core)), rule(shot.core,"core_skull"));
+@@ -255,2 +265,2 @@
+-        float damage;
+-        if (!WitherDefense.enemy(core, target) || core.squaredDistanceTo(target) > 900.0 || !core.canSee(target) || MatchFlow.timer(target.getServer()) >= MapConfig.get(target.getServer(), "rage") * 20) {
++        if(skill<0||skill>=SPECIAL.length)return;int damage=rule(core,SPECIAL[skill]);if(damage<=0)return;
++        if (!WitherDefense.enemy(core, target) || core.squaredDistanceTo(target) > Math.pow(rule(core,"core_reach"),2) || !core.canSee(target) || MatchFlow.timer(target.getServer()) >= MapConfig.get(target.getServer(), "rage") * 20) {
+@@ -260,17 +269,0 @@
+-        switch (skill) {
+-            case 0: {
+-                float f = 8.0f;
+-                break;
+-            }
+-            case 1: {
+-                float f = 3.0f;
+-                break;
+-            }
+-            case 2: {
+-                float f = 5.0f;
+-                break;
+-            }
+-            default: {
+-                float f = damage = 4.0f;
+-            }
+-        }
+@@ -288 +281 @@
+-                target.setFireTicks(100);
++                if(rule(core,"core_flame_t")>0)target.setFireTicks(Math.max(target.getFireTicks(),rule(core,"core_flame_t")*20));
+@@ -293 +286 @@
+-                target.addStatusEffect(new StatusEffectInstance(StatusEffects.SLOWNESS, 100, 1));
++                if(rule(core,"core_slow_t")>0)target.addStatusEffect(new StatusEffectInstance(StatusEffects.SLOWNESS, rule(core,"core_slow_t")*20, 1));
+@@ -299 +292 @@
+-                target.setVelocity(direction.x * 1.5, 0.8, direction.z * 1.5);
++                double push=rule(core,"core_push_pct")/100d;if(push<=0)break;target.setVelocity(direction.x * 1.5 * push, 0.8 * push, direction.z * 1.5 * push);

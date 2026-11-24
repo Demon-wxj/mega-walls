@@ -1,0 +1,8 @@
+{
+  "required": true,
+  "minVersion": "0.8",
+  "package": "com.megawalls.mixin",
+  "compatibilityLevel": "JAVA_21",
+  "mixins": ["BedMagnetDamageMixin", "BedMagnetArrowMixin"],
+  "injectors": {"defaultRequire": 1}
+}
