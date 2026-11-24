@@ -17,3 +17,5 @@ gradle clean build --console=plain
 源码引用 Tabletop 0.5.10 的 API。Tabletop 仓库的源码版本是 0.5.10，请先按 Tabletop 仓库构建 0.5.10，再放入 deps；缺少旧版依赖时可能无法构建。AAA Particles 2.3.0 也需单独取得。Effekseer 特效源文件、生成器和导出工具见 [tools/effekseer](tools/effekseer/README.md)，第三方编辑器不包含在仓库中。
 
 未包含无公开授权的美术，代码仍可能引用原资源路径，导致缺失纹理或模型。需要补入有权使用的资源，或自行替换。
+
+周年庆 1.18.45 的增量维护方式见 [维护补丁](maintenance/1.18.45/README.md)。
